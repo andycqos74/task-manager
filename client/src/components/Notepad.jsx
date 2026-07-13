@@ -2,6 +2,13 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
 const RULE = 28; // px between ruled lines; also the block text line-height
+const MIN_HEIGHT = 120;
+const DEFAULT_HEIGHT = 240;
+const EXPAND_FRACTION = 0.65; // "expand" preset as a fraction of viewport height
+
+function maxHeight() {
+  return Math.max(300, window.innerHeight - 220);
+}
 
 function uid() {
   return (crypto.randomUUID && crypto.randomUUID()) || `b${Date.now()}${Math.random().toString(36).slice(2)}`;
@@ -67,6 +74,10 @@ function NoteBlock({ block, onChange, onMove, onRemove, onActive, autofocus }) {
 // selection can be turned into a task.
 export default function Notepad({ projects, context, refresh, onError }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [pageHeight, setPageHeight] = useState(() => {
+    const saved = Number(localStorage.getItem('notepad-height'));
+    return saved >= MIN_HEIGHT ? saved : DEFAULT_HEIGHT;
+  });
   const [note, setNote] = useState(null);
   const [options, setOptions] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -79,6 +90,34 @@ export default function Notepad({ projects, context, refresh, onError }) {
   useEffect(() => {
     api.get('/notes/scratch').then((n) => { setNote(n); dirtyRef.current = false; }).catch(onError);
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('notepad-height', String(pageHeight));
+  }, [pageHeight]);
+
+  // Drag the handle above the page to resize it vertically.
+  function startResize(e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = pageHeight;
+    const max = maxHeight();
+    const move = (ev) => {
+      const next = startHeight + (startY - ev.clientY); // drag up = taller
+      setPageHeight(Math.min(max, Math.max(MIN_HEIGHT, next)));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  // Quick "big/small" alternative to dragging.
+  function toggleSize() {
+    const max = maxHeight();
+    setPageHeight((h) => (h < max * 0.6 ? max : DEFAULT_HEIGHT));
+  }
 
   async function reloadOptions() {
     try {
@@ -223,14 +262,24 @@ export default function Notepad({ projects, context, refresh, onError }) {
       ? `project:${note.project_id}`
       : 'standalone';
 
+  const isExpanded = pageHeight >= maxHeight() * 0.6;
+
   return (
     <div className={`notepad-dock ${collapsed ? 'collapsed' : ''}`}>
+      {!collapsed && (
+        <div className="notepad-resize-handle" onPointerDown={startResize} title="Drag to resize">
+          <span className="notepad-resize-grip" />
+        </div>
+      )}
       <div className="notepad-bar">
         <button className="notepad-toggle" onClick={() => setCollapsed((c) => !c)}>
           🗒 Notepad {collapsed ? '▲' : '▼'}
         </button>
         {!collapsed && note && (
           <>
+            <button className="small" onClick={toggleSize} title="Expand or shrink the notepad">
+              {isExpanded ? '⤡ Shrink' : '⤢ Expand'}
+            </button>
             <select value={note.id} onChange={(e) => switchTo(Number(e.target.value))} title="Choose note">
               {options.map((n) => (
                 <option key={n.id} value={n.id}>
@@ -272,7 +321,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
         )}
       </div>
       {!collapsed && note && (
-        <div className="notepad-page" ref={pageRef} onMouseDown={onPageMouseDown}>
+        <div className="notepad-page" ref={pageRef} onMouseDown={onPageMouseDown} style={{ height: pageHeight }}>
           {note.blocks.length === 0 && (
             <div className="notepad-hint">Click anywhere on the page to start a note.</div>
           )}

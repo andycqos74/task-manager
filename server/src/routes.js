@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, getSettings, setSetting } from './db.js';
+import { db, getSettings, setSetting, deleteSetting } from './db.js';
 import { todayISO, addDays, computeDoDate, nextOccurrence, isValidISODate } from './dates.js';
 import { rankTasks } from './scoring.js';
 import { aiAvailable, planMyDay, prioritise } from './ai.js';
@@ -648,7 +648,25 @@ router.get('/tags', (req, res) => {
   res.json([...all].sort());
 });
 
-router.get('/settings', (req, res) => res.json({ ...getSettings(), ai_available: aiAvailable() }));
+// The stored Anthropic API key is write-only from the client's perspective —
+// GET/PATCH never echo it back, only whether one is configured, where it
+// came from, and its last 4 characters so the user can confirm which key is
+// active without re-reading the secret itself.
+function publicSettings() {
+  const s = getSettings();
+  const dbKey = (s.anthropic_api_key || '').trim();
+  const hasDbKey = !!dbKey;
+  const hasEnvKey = !!process.env.ANTHROPIC_API_KEY;
+  return {
+    workday_minutes: s.workday_minutes,
+    workday_start: s.workday_start,
+    ai_available: aiAvailable(),
+    ai_key_source: hasDbKey ? 'settings' : hasEnvKey ? 'env' : 'none',
+    ai_key_last4: hasDbKey ? dbKey.slice(-4) : null,
+  };
+}
+
+router.get('/settings', (req, res) => res.json(publicSettings()));
 
 router.patch('/settings', (req, res) => {
   const b = req.body || {};
@@ -658,7 +676,14 @@ router.patch('/settings', (req, res) => {
     setSetting('workday_minutes', v);
   }
   if ('workday_start' in b) setSetting('workday_start', String(b.workday_start));
-  res.json({ ...getSettings(), ai_available: aiAvailable() });
+  if ('anthropic_api_key' in b) {
+    if (typeof b.anthropic_api_key !== 'string') return badRequest(res, 'anthropic_api_key must be a string');
+    const key = b.anthropic_api_key.trim();
+    if (key.length > 300) return badRequest(res, 'API key is too long');
+    if (key) setSetting('anthropic_api_key', key);
+    else deleteSetting('anthropic_api_key');
+  }
+  res.json(publicSettings());
 });
 
 router.get('/ai/status', (req, res) => res.json({ available: aiAvailable() }));

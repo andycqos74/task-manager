@@ -1,18 +1,30 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { fallbackPlanDay, fallbackPrioritise } from './scoring.js';
+import { getSettings } from './db.js';
 
 // AI-assisted planning and prioritisation via the Claude API.
-// If ANTHROPIC_API_KEY is not set (or a call fails), the rule-based
-// fallback in scoring.js is used instead, so the app works either way.
+// If no API key is configured (or a call fails), the rule-based fallback in
+// scoring.js is used instead, so the app works either way.
+//
+// The key can come from Settings (stored in the database, entered in the UI)
+// or from the ANTHROPIC_API_KEY environment variable. A key saved in
+// Settings takes precedence, so it can be added/changed without restarting
+// the container.
 
 const MODEL = process.env.CLAUDE_MODEL || 'claude-opus-4-8';
 
+export function effectiveApiKey() {
+  const stored = getSettings().anthropic_api_key;
+  if (stored && stored.trim()) return stored.trim();
+  return process.env.ANTHROPIC_API_KEY || null;
+}
+
 export function aiAvailable() {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return !!effectiveApiKey();
 }
 
 function client() {
-  return new Anthropic();
+  return new Anthropic({ apiKey: effectiveApiKey() });
 }
 
 // Compact representation of tasks for the prompt — only decision-relevant fields.

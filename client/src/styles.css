@@ -215,8 +215,15 @@ button.danger:hover { background: #fbf0ef; }
 /* ---------- notepad dock (always visible) ---------- */
 .notepad-dock {
   flex-shrink: 0; border-top: 1px solid #d5dbe2; background: #fffdf7;
-  display: flex; flex-direction: column; max-height: 46vh;
+  display: flex; flex-direction: column;
 }
+/* Drag handle for resizing the page vertically. */
+.notepad-resize-handle {
+  height: 8px; cursor: ns-resize; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.notepad-resize-grip { width: 44px; height: 4px; border-radius: 2px; background: #d5dbe2; }
+.notepad-resize-handle:hover .notepad-resize-grip { background: #98a3b0; }
 .notepad-bar {
   display: flex; align-items: center; gap: 8px; padding: 6px 12px;
   flex-wrap: wrap; border-bottom: 1px solid #eef1f5;
@@ -229,9 +236,10 @@ button.danger:hover { background: #fbf0ef; }
 .notepad-title { min-width: 150px; }
 .notepad-status { margin-left: auto; color: #8a94a3; font-size: 12px; white-space: nowrap; }
 
-/* Ruled "page" you can click anywhere on to start a note block. */
+/* Ruled "page" you can click anywhere on to start a note block. Height is
+   controlled via inline style (draggable / expand-shrink button). */
 .notepad-page {
-  position: relative; overflow: auto; height: 240px; background: #fffdf7;
+  position: relative; overflow: auto; background: #fffdf7; flex-shrink: 0;
   /* horizontal rule lines every 28px + a margin line */
   background-image:
     linear-gradient(to right, transparent 38px, #f0c9c0 38px, #f0c9c0 40px, transparent 40px),

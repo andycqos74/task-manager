@@ -19,15 +19,17 @@ npm run build
 npm start             # everything on http://localhost:3001
 ```
 
-Optional AI planning — set an Anthropic API key before starting the server:
+Optional AI planning — add a key in the app's **Settings** page (stored in the database, no
+restart needed), or set it before starting the server:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 npm start
 ```
 
-Without a key the app still works: "Plan my day" and "Prioritise" fall back to a built-in
-rule engine (deadlines, start dates, priority, dependencies, workload).
+A key entered in Settings takes precedence over the environment variable. Without either,
+the app still works: "Plan my day" and "Prioritise" fall back to a built-in rule engine
+(deadlines, start dates, priority, dependencies, workload).
 
 ## Run with Docker
 
@@ -40,8 +42,9 @@ docker compose up --build
 ```
 
 Then open **http://localhost:3001** in your browser — that one URL serves both the UI and
-the API. To enable AI planning, provide a key (compose reads it from the environment or a
-`.env` file):
+the API. To enable AI planning, either open **Settings** in the app and paste in a key
+(recommended — no restart needed), or provide it as an environment variable before starting
+the container:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
@@ -87,10 +90,12 @@ module in a toolchain stage, and ships a slim runtime image that runs as a non-r
 - **Notepad** — an always-visible scratch pad docked at the bottom, on ruled paper. Like
   OneNote/a paper pad, **click anywhere on the page to start a separate note block** where
   you clicked (jot document notes in one spot, a phone-call note in another); blocks can be
-  dragged to reposition. Everything auto-saves. A note can be **standalone** or **attached**
-  to a single task or project, and any **line or selection can be turned into a task** with
-  one click (first line → title, the rest → task notes). A singleton "Scratch" note is
-  always present; use "＋ New" for additional pages.
+  dragged to reposition. **Resizable** — drag the handle above the notepad, or use the
+  "Expand/Shrink" button for a quick big/small toggle; the size is remembered. Everything
+  auto-saves. A note can be **standalone** or **attached** to a single task or project, and
+  any **line or selection can be turned into a task** with one click (first line → title,
+  the rest → task notes). A singleton "Scratch" note is always present; use "＋ New" for
+  additional pages.
 - **Extras** — subtask checklists, tags with search/filter, recurring tasks
   (daily/weekly/monthly — completing one spawns the next occurrence).
 

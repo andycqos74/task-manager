@@ -32,17 +32,22 @@ git pull
 
 ## 2. (Optional) Add your Anthropic API key
 
-Create a `.env` file next to `docker-compose.yml`. Compose loads it automatically, and
-`.env` is gitignored so it is never committed:
+Two ways to provide it — a key entered in the app takes precedence if both are set:
 
-```bash
-echo 'ANTHROPIC_API_KEY=sk-ant-your-key-here' > .env
-```
+- **In the app (recommended)** — after starting the container (step 3), open the app →
+  **Settings** → paste the key under "Claude API key" → Save. It's stored in the app's
+  database, masked after saving, and can be changed any time with no restart or redeploy.
+- **As an environment variable** — create a `.env` file next to `docker-compose.yml` before
+  starting the container. Compose loads it automatically, and `.env` is gitignored so it is
+  never committed:
 
-Without a key the app still works fully — "Plan my day" and "Prioritise" fall back to the
-built-in rule engine (deadlines, start dates, priority, dependencies, workload). You can
-add the key and restart later at any time. Optionally set `CLAUDE_MODEL` in `.env` to
-override the default (`claude-opus-4-8`).
+  ```bash
+  echo 'ANTHROPIC_API_KEY=sk-ant-your-key-here' > .env
+  ```
+
+Without either, the app still works fully — "Plan my day" and "Prioritise" fall back to the
+built-in rule engine (deadlines, start dates, priority, dependencies, workload). Optionally
+set `CLAUDE_MODEL` in `.env` to override the default (`claude-opus-4-8`).
 
 ## 3. Build and start
 
