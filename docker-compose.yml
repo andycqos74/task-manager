@@ -1,0 +1,18 @@
+services:
+  task-manager:
+    build: .
+    image: task-manager
+    ports:
+      # host:container — open http://localhost:3001 in your browser.
+      - "3001:3001"
+    environment:
+      # AI planning is optional. Leave unset to use the built-in rule engine.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-opus-4-8}
+    volumes:
+      # Persists the SQLite database (server writes to DATA_DIR=/data).
+      - taskdata:/data
+    restart: unless-stopped
+
+volumes:
+  taskdata:

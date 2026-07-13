@@ -29,6 +29,37 @@ npm start
 Without a key the app still works: "Plan my day" and "Prioritise" fall back to a built-in
 rule engine (deadlines, start dates, priority, dependencies, workload).
 
+## Run with Docker
+
+The whole app runs as a **single container** — the Node server serves the built React
+frontend and the `/api` routes on the same port, so there is no separate web server and
+no CORS to configure.
+
+```bash
+docker compose up --build
+```
+
+Then open **http://localhost:3001** in your browser — that one URL serves both the UI and
+the API. To enable AI planning, provide a key (compose reads it from the environment or a
+`.env` file):
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
+```
+
+Without Compose:
+
+```bash
+docker build -t task-manager .
+docker run -p 3001:3001 -v taskdata:/data \
+  -e ANTHROPIC_API_KEY=sk-ant-... task-manager   # -e is optional
+```
+
+The SQLite database is stored in the `taskdata` volume (mounted at `/data`, which the
+server reads via `DATA_DIR`), so your tasks survive container restarts and rebuilds. The
+image is a three-stage build: it compiles the frontend, compiles the native `better-sqlite3`
+module in a toolchain stage, and ships a slim runtime image that runs as a non-root user.
+
 ## Concepts
 
 - **Projects / Goals** — larger pieces of work. Tasks can belong to a project or live in
