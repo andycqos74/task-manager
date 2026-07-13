@@ -8,6 +8,7 @@ import ProjectDetail from './views/ProjectDetail.jsx';
 import Gantt from './views/Gantt.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
+import Notepad from './components/Notepad.jsx';
 
 export default function App() {
   const [view, setView] = useState({ name: 'myday' });
@@ -39,6 +40,12 @@ export default function App() {
     setView,
   };
 
+  // What the always-visible notepad can attach a note to right now.
+  const noteContext = {
+    projectId: view.name === 'project' ? view.projectId : null,
+    taskId: selectedTaskId,
+  };
+
   const navItem = (key, label, target) => (
     <button
       key={key}
@@ -50,6 +57,7 @@ export default function App() {
   );
 
   return (
+    <div className="app-shell">
     <div className="app">
       <aside className="sidebar">
         <h1 className="logo">Tasks</h1>
@@ -109,6 +117,14 @@ export default function App() {
           onError={reportError}
         />
       )}
+    </div>
+
+      <Notepad
+        projects={projects}
+        context={noteContext}
+        refresh={refresh}
+        onError={reportError}
+      />
     </div>
   );
 }

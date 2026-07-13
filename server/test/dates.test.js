@@ -13,11 +13,17 @@ test('diffDays', () => {
   assert.equal(diffDays('2026-07-12', '2026-07-10'), -2);
 });
 
-test('computeDoDate: due minus estimated TTC in workdays', () => {
-  // 2h task, 8h workday -> start one day before due
-  assert.equal(computeDoDate('2026-07-20', 120, 480), '2026-07-19');
-  // 2-day task -> start two days before due
-  assert.equal(computeDoDate('2026-07-20', 960, 480), '2026-07-18');
+test('computeDoDate: sub-day tasks start on the due date; the due day is a working day', () => {
+  // 2h task fits within an 8h workday -> do date = due date (hours don't eat a whole day)
+  assert.equal(computeDoDate('2026-07-20', 120, 480), '2026-07-20');
+  // exactly one full workday -> still the due date
+  assert.equal(computeDoDate('2026-07-20', 480, 480), '2026-07-20');
+  // 12h (1.5 days) -> start one day before (8h before + 4h on due day)
+  assert.equal(computeDoDate('2026-07-20', 720, 480), '2026-07-19');
+  // 16h (2 full days across due day + prior day) -> start one day before
+  assert.equal(computeDoDate('2026-07-20', 960, 480), '2026-07-19');
+  // 20h -> start two days before
+  assert.equal(computeDoDate('2026-07-20', 1200, 480), '2026-07-18');
   // no estimate -> do date = due date
   assert.equal(computeDoDate('2026-07-20', null, 480), '2026-07-20');
   // no due date -> no default

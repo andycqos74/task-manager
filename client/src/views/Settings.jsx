@@ -37,8 +37,10 @@ export default function Settings({ settings, refresh, onError }) {
         </div>
       </div>
       <div className="banner info" style={{ marginTop: 24 }}>
-        <strong>How Do dates work:</strong> by default, Do date = Due date − Estimated TTC (rounded up to whole
-        workdays). Editing a Do date directly makes it manual; use "reset" in the task panel to return to automatic.
+        <strong>How Do dates work:</strong> by default, Do date = Due date − Estimated TTC. The due date itself
+        counts as a working day, so a task that fits within one workday starts on its due date; only whole extra
+        workdays push the start earlier. Editing a Do date directly makes it manual; use "reset" in the task panel
+        to return to automatic.
       </div>
     </div>
   );

@@ -491,6 +491,103 @@ router.get('/gantt', (req, res) => {
   });
 });
 
+// ---------- notes ----------
+// Notes can be standalone (memonotepad-style scratch) or attached to a single
+// task OR project. A well-known singleton "scratch" note backs the always-
+// visible notepad.
+
+const NOTE_SELECT = `SELECT n.*, p.name AS project_name, t.title AS task_title
+                     FROM notes n
+                     LEFT JOIN projects p ON p.id = n.project_id
+                     LEFT JOIN tasks t ON t.id = n.task_id`;
+
+function getNote(id) {
+  return db.prepare(`${NOTE_SELECT} WHERE n.id = ?`).get(id) || null;
+}
+
+// Validate an effective attachment: at most one of task/project, and it must exist.
+function validateAttachment(attach, res) {
+  const hasTask = attach.task_id != null;
+  const hasProject = attach.project_id != null;
+  if (hasTask && hasProject) { badRequest(res, 'a note can attach to a task or a project, not both'); return false; }
+  if (hasTask && !db.prepare('SELECT id FROM tasks WHERE id = ?').get(attach.task_id)) { badRequest(res, 'unknown task'); return false; }
+  if (hasProject && !db.prepare('SELECT id FROM projects WHERE id = ?').get(attach.project_id)) { badRequest(res, 'unknown project'); return false; }
+  return true;
+}
+
+router.get('/notes', (req, res) => {
+  const clauses = [];
+  const params = [];
+  if (req.query.standalone === '1') clauses.push('n.project_id IS NULL AND n.task_id IS NULL AND n.is_scratch = 0');
+  if (req.query.task_id) { clauses.push('n.task_id = ?'); params.push(Number(req.query.task_id)); }
+  if (req.query.project_id) { clauses.push('n.project_id = ?'); params.push(Number(req.query.project_id)); }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  res.json(db.prepare(`${NOTE_SELECT} ${where} ORDER BY n.updated_at DESC`).all(...params));
+});
+
+// Defined before /notes/:id so "scratch" isn't matched as an id.
+router.get('/notes/scratch', (req, res) => {
+  let row = db.prepare('SELECT id FROM notes WHERE is_scratch = 1 ORDER BY id LIMIT 1').get();
+  if (!row) {
+    const info = db.prepare("INSERT INTO notes (title, is_scratch) VALUES ('Scratch', 1)").run();
+    row = { id: info.lastInsertRowid };
+  }
+  res.json(getNote(row.id));
+});
+
+router.post('/notes', (req, res) => {
+  const b = req.body || {};
+  if (!validateAttachment({ task_id: b.task_id ?? null, project_id: b.project_id ?? null }, res)) return;
+  const info = db
+    .prepare('INSERT INTO notes (title, body, project_id, task_id) VALUES (?,?,?,?)')
+    .run(b.title || '', b.body || '', b.project_id || null, b.task_id || null);
+  res.status(201).json(getNote(info.lastInsertRowid));
+});
+
+router.get('/notes/:id', (req, res) => {
+  const note = getNote(req.params.id);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+  res.json(note);
+});
+
+router.patch('/notes/:id', (req, res) => {
+  const note = getNote(req.params.id);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+  const b = req.body || {};
+
+  // Resolve the effective owner after this patch. A note has at most one owner,
+  // so attaching to one target clears the other — apply that BEFORE validating,
+  // otherwise switching a project-note to a task looks like "both set".
+  const touchesAttachment = 'task_id' in b || 'project_id' in b;
+  let effTask = 'task_id' in b ? (b.task_id || null) : note.task_id;
+  let effProject = 'project_id' in b ? (b.project_id || null) : note.project_id;
+  if (b.task_id && b.project_id) return badRequest(res, 'a note can attach to a task or a project, not both');
+  if (b.task_id) effProject = null;
+  if (b.project_id) effTask = null;
+  if (!validateAttachment({ task_id: effTask, project_id: effProject }, res)) return;
+
+  const updates = {};
+  for (const k of ['title', 'body']) if (k in b) updates[k] = b[k];
+  if (touchesAttachment) { updates.task_id = effTask; updates.project_id = effProject; }
+
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  if (sets) {
+    db.prepare(`UPDATE notes SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(
+      ...Object.values(updates),
+      note.id,
+    );
+  }
+  res.json(getNote(note.id));
+});
+
+router.delete('/notes/:id', (req, res) => {
+  const note = getNote(req.params.id);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+  if (note.is_scratch) return badRequest(res, 'the scratch note cannot be deleted');
+  db.prepare('DELETE FROM notes WHERE id = ?').run(note.id);
+  res.json({ ok: true });
+});
+
 // ---------- tags / settings / ai ----------
 
 router.get('/tags', (req, res) => {

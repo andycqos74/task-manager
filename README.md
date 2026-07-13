@@ -69,9 +69,11 @@ module in a toolchain stage, and ships a slim runtime image that runs as a non-r
   added later in the task panel.
 - **Three dates per task**:
   - **Due date** — when it must be finished.
-  - **Do date** — when the work should start. Defaults to `Due date − Estimated TTC`
-    (rounded up to whole workdays, workday length configurable in Settings). Editing the
-    Do date makes it manual; a one-click "reset" returns it to automatic.
+  - **Do date** — when the work should start. Defaults to `Due date − Estimated TTC`. The
+    due date itself counts as a working day, so a task that fits within one workday starts
+    on its due date; only whole extra workdays push the start earlier (workday length is
+    configurable in Settings). Editing the Do date makes it manual; a one-click "reset"
+    returns it to automatic.
   - **Estimated TTC** — estimated time to complete, entered as `2h`, `90m`, `1d 4h`, etc.
 - **My Day** — like Microsoft To Do's My Day. Shows tasks flagged for today (one click on
   the ☀ icon, flag expires at midnight) plus tasks whose Do date has arrived. Includes
@@ -82,6 +84,11 @@ module in a toolchain stage, and ships a slim runtime image that runs as a non-r
   with dependency connectors and a today line.
 - **Dependencies** — tasks can depend on other tasks; blocked tasks are labelled, sink in
   ranking, and are never suggested for today. Cycles are rejected.
+- **Notepad** — an always-visible scratch pad docked at the bottom (memonotepad
+  style): type anywhere, it auto-saves. Notes can be **standalone** or **attached** to a
+  single task or project, and any **line or selection can be turned into a task** with one
+  click (first line → title, the rest → task notes). A singleton "Scratch" note is always
+  present; use "＋ New" for additional notes.
 - **Extras** — subtask checklists, tags with search/filter, recurring tasks
   (daily/weekly/monthly — completing one spawns the next occurrence).
 
@@ -118,6 +125,8 @@ Run server unit tests with `npm test`.
 - `POST /api/tasks/:id/subtasks`, `PATCH/DELETE /api/subtasks/:id`
 - `PUT /api/tasks/:id/dependencies` `{depends_on_ids: [...]}`
 - `GET /api/views/my-day`, `GET /api/views/schedule`, `GET /api/gantt`
+- `GET/POST /api/notes`, `GET /api/notes/scratch`, `GET/PATCH/DELETE /api/notes/:id`
+  (attach via `{task_id}` or `{project_id}`; a note has at most one owner)
 - `GET /api/tags`, `GET/PATCH /api/settings`
 - `GET /api/ai/status`, `POST /api/ai/plan-day`, `POST /api/ai/prioritise`
 

@@ -28,14 +28,16 @@ export function isValidISODate(s) {
 }
 
 // Default Do Date rule: Due Date minus Estimated TTC.
-// TTC is stored in minutes; it is converted to working days (rounded up
-// against the configured workday length) so a 2h task defaults to starting
-// one day before it is due, a 2-day task two days before, etc.
+// TTC is stored in minutes. The due date itself counts as a working day, so a
+// task that fits within one workday (e.g. a 2h task) starts on its due date;
+// only the *extra* whole workdays needed beyond that push the start earlier.
+// Examples on an 8h workday: 2h -> due date; 8h -> due date; 12h -> 1 day
+// before; 16h -> 1 day before; 20h -> 2 days before.
 // No due date -> no default do date. No estimate -> do date = due date.
 export function computeDoDate(dueDate, estimatedMinutes, workdayMinutes = 480) {
   if (!dueDate) return null;
   if (!estimatedMinutes || estimatedMinutes <= 0) return dueDate;
-  const leadDays = Math.ceil(estimatedMinutes / workdayMinutes);
+  const leadDays = Math.max(0, Math.ceil(estimatedMinutes / workdayMinutes) - 1);
   return addDays(dueDate, -leadDays);
 }
 
