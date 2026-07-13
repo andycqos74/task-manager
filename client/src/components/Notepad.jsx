@@ -1,25 +1,85 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
-// Always-visible scratch notepad (memonotepad-style): a plain textarea that
-// auto-saves as you type. Notes can be standalone or attached to a single task
-// or project, and any line/selection can be turned into a task.
+const RULE = 28; // px between ruled lines; also the block text line-height
+
+function uid() {
+  return (crypto.randomUUID && crypto.randomUUID()) || `b${Date.now()}${Math.random().toString(36).slice(2)}`;
+}
+
+function autosize(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${Math.max(RULE, el.scrollHeight)}px`;
+}
+
+// A single free-floating text block on the page. Auto-sizes to its content and
+// can be dragged around by its handle.
+function NoteBlock({ block, onChange, onMove, onRemove, onActive, autofocus }) {
+  const ref = useRef(null);
+  const everTyped = useRef(false);
+  useEffect(() => { autosize(ref.current); }, [block.text]);
+  // Focus a freshly-created block synchronously (before the browser paints /
+  // control returns from the click) so it's ready to type into immediately and
+  // the click that made it doesn't blur an empty box.
+  useLayoutEffect(() => {
+    if (autofocus && ref.current) { ref.current.focus(); onActive(ref.current); }
+  }, []);
+  if (block.text.trim()) everTyped.current = true;
+
+  function startDrag(e) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const ox = block.x;
+    const oy = block.y;
+    const move = (ev) => onMove(Math.max(0, ox + ev.clientX - startX), Math.max(0, oy + ev.clientY - startY));
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  return (
+    <div className="note-block" style={{ left: block.x, top: block.y }}>
+      <span className="note-block-handle" onPointerDown={startDrag} title="Drag to move">⠿</span>
+      <button className="note-block-x" onMouseDown={(e) => e.preventDefault()} onClick={onRemove} title="Delete note">✕</button>
+      <textarea
+        ref={ref}
+        data-block-id={block.id}
+        className="note-block-text"
+        value={block.text}
+        rows={1}
+        placeholder="note…"
+        onFocus={() => onActive(ref.current)}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => { if (!block.text.trim() && everTyped.current) onRemove(); }}
+      />
+    </div>
+  );
+}
+
+// Always-visible notepad. A ruled "page" you can click anywhere on to start a
+// separate note (OneNote / paper-notepad style), auto-saving as you type.
+// A note can be standalone or attached to a task/project, and any line or
+// selection can be turned into a task.
 export default function Notepad({ projects, context, refresh, onError }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [note, setNote] = useState(null); // the note currently being edited
-  const [options, setOptions] = useState([]); // notes shown in the selector
+  const [note, setNote] = useState(null);
+  const [options, setOptions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState('');
+  const [newBlockId, setNewBlockId] = useState(null); // block to auto-focus on create
   const dirtyRef = useRef(false);
-  const textareaRef = useRef(null);
+  const activeRef = useRef(null);   // textarea of the focused block (for → Task)
+  const pageRef = useRef(null);
 
-  // Load the always-there scratch note once on mount.
   useEffect(() => {
     api.get('/notes/scratch').then((n) => { setNote(n); dirtyRef.current = false; }).catch(onError);
   }, []);
 
-  // The selector shows: the scratch note, all standalone notes, and any notes
-  // attached to whatever task/project is currently in context.
   async function reloadOptions() {
     try {
       const scratch = await api.get('/notes/scratch');
@@ -36,44 +96,62 @@ export default function Notepad({ projects, context, refresh, onError }) {
   }
   useEffect(() => { reloadOptions(); }, [context?.taskId, context?.projectId]);
 
-  // Debounced auto-save. Fires only after a real edit (dirtyRef), not on load.
+  // Debounced auto-save, keyed on a signature of the editable content.
+  const sig = note ? JSON.stringify({ t: note.title, b: note.blocks }) : '';
   useEffect(() => {
     if (!note || !dirtyRef.current) return;
-    const { id, title, body } = note;
+    const { id, title, blocks } = note;
     setSaving(true);
     const timer = setTimeout(async () => {
-      try { await api.patch(`/notes/${id}`, { title, body }); reloadOptions(); }
+      try { await api.patch(`/notes/${id}`, { title, blocks }); reloadOptions(); }
       catch (err) { onError(err); }
       finally { setSaving(false); }
     }, 600);
     return () => clearTimeout(timer);
-  }, [note?.title, note?.body]);
+  }, [sig]);
 
-  // Persist any pending edit immediately (before switching notes / attaching).
   async function flush() {
     if (note && dirtyRef.current) {
-      try { await api.patch(`/notes/${note.id}`, { title: note.title, body: note.body }); }
-      catch { /* surfaced on next real save */ }
+      try { await api.patch(`/notes/${note.id}`, { title: note.title, blocks: note.blocks }); }
+      catch { /* surfaced on next save */ }
       dirtyRef.current = false;
     }
   }
 
   async function switchTo(id) {
     await flush();
-    try { const n = await api.get(`/notes/${id}`); setNote(n); dirtyRef.current = false; }
+    try { const n = await api.get(`/notes/${id}`); setNote(n); dirtyRef.current = false; activeRef.current = null; }
     catch (err) { onError(err); }
   }
 
-  function edit(patch) {
-    setNote((n) => ({ ...n, ...patch }));
+  function mutateBlocks(fn) {
+    setNote((n) => ({ ...n, blocks: fn(n.blocks) }));
     dirtyRef.current = true;
   }
+
+  // Click on empty page space -> start a new note block there.
+  function onPageMouseDown(e) {
+    if (e.target !== pageRef.current) return; // ignore clicks on existing blocks
+    // Stop the browser moving focus to the non-focusable page, which would
+    // otherwise blur the block we're about to create and focus.
+    e.preventDefault();
+    const rect = pageRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left + pageRef.current.scrollLeft;
+    const y = Math.round((e.clientY - rect.top + pageRef.current.scrollTop) / RULE) * RULE; // snap to a line
+    const id = uid();
+    setNewBlockId(id);
+    mutateBlocks((blocks) => [...blocks, { id, x: Math.round(x), y: Math.max(0, y), text: '' }]);
+  }
+
+  const editBlock = (id, text) => mutateBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, text } : b)));
+  const moveBlock = (id, x, y) => mutateBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, x, y } : b)));
+  const removeBlock = (id) => mutateBlocks((bs) => bs.filter((b) => b.id !== id));
 
   async function newNote() {
     await flush();
     try {
-      const n = await api.post('/notes', { title: '', body: '' });
-      setNote(n); dirtyRef.current = false; reloadOptions();
+      const n = await api.post('/notes', { title: '', blocks: [] });
+      setNote(n); dirtyRef.current = false; activeRef.current = null; reloadOptions();
     } catch (err) {
       onError(err);
     }
@@ -85,7 +163,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
     try {
       await api.delete(`/notes/${note.id}`);
       const scratch = await api.get('/notes/scratch');
-      setNote(scratch); dirtyRef.current = false; reloadOptions();
+      setNote(scratch); dirtyRef.current = false; activeRef.current = null; reloadOptions();
     } catch (err) {
       onError(err);
     }
@@ -105,12 +183,16 @@ export default function Notepad({ projects, context, refresh, onError }) {
     }
   }
 
-  // Turn the current line (or the current selection) into a task. The first
-  // non-empty line becomes the title; any remaining lines become task notes.
+  function flashMsg(msg) {
+    setFlash(msg);
+    setTimeout(() => setFlash(''), 4000);
+  }
+
+  // Turn the focused block's current line (or its selection) into a task.
   async function lineToTask() {
-    const ta = textareaRef.current;
-    if (!ta || !note) return;
-    const value = note.body || '';
+    const ta = activeRef.current;
+    if (!ta || !ta.isConnected) { flashMsg('Click into a note first, then “→ Task”.'); return; }
+    const value = ta.value || '';
     let chosen;
     if (ta.selectionStart !== ta.selectionEnd) {
       chosen = value.slice(ta.selectionStart, ta.selectionEnd);
@@ -121,11 +203,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
       chosen = value.slice(start, end);
     }
     const lines = chosen.split('\n').map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) {
-      setFlash('Put the cursor on a line, or select text, first.');
-      setTimeout(() => setFlash(''), 4000);
-      return;
-    }
+    if (!lines.length) { flashMsg('Put the cursor on a line, or select text, first.'); return; }
     try {
       const task = await api.post('/tasks', {
         title: lines[0],
@@ -133,8 +211,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
         project_id: note.project_id || context?.projectId || null,
       });
       refresh?.();
-      setFlash(`Created task: “${task.title}”`);
-      setTimeout(() => setFlash(''), 4000);
+      flashMsg(`Created task: “${task.title}”`);
     } catch (err) {
       onError(err);
     }
@@ -171,7 +248,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
                 className="notepad-title"
                 value={note.title}
                 placeholder="Untitled note"
-                onChange={(e) => edit({ title: e.target.value })}
+                onChange={(e) => { setNote((n) => ({ ...n, title: e.target.value })); dirtyRef.current = true; }}
               />
             )}
             <select value={attachValue} onChange={(e) => setAttachment(e.target.value)} title="Attach this note">
@@ -195,13 +272,22 @@ export default function Notepad({ projects, context, refresh, onError }) {
         )}
       </div>
       {!collapsed && note && (
-        <textarea
-          ref={textareaRef}
-          className="notepad-body"
-          value={note.body}
-          placeholder="Jot anything here — it saves automatically. Put the cursor on a line (or select text) and click “→ Task”."
-          onChange={(e) => edit({ body: e.target.value })}
-        />
+        <div className="notepad-page" ref={pageRef} onMouseDown={onPageMouseDown}>
+          {note.blocks.length === 0 && (
+            <div className="notepad-hint">Click anywhere on the page to start a note.</div>
+          )}
+          {note.blocks.map((block) => (
+            <NoteBlock
+              key={block.id}
+              block={block}
+              onChange={(text) => editBlock(block.id, text)}
+              onMove={(x, y) => moveBlock(block.id, x, y)}
+              onRemove={() => removeBlock(block.id)}
+              onActive={(el) => { activeRef.current = el; }}
+              autofocus={block.id === newBlockId}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

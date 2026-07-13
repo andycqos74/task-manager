@@ -501,8 +501,43 @@ const NOTE_SELECT = `SELECT n.*, p.name AS project_name, t.title AS task_title
                      LEFT JOIN projects p ON p.id = n.project_id
                      LEFT JOIN tasks t ON t.id = n.task_id`;
 
+// A note's content is a set of freely-positioned text blocks. Parse them, and
+// for legacy notes that only have plain `body` text, seed a single block so
+// nothing is lost when the free-canvas editor loads them.
+function hydrateNote(row) {
+  if (!row) return null;
+  let blocks = [];
+  try { blocks = JSON.parse(row.blocks || '[]'); } catch { blocks = []; }
+  if ((!Array.isArray(blocks) || blocks.length === 0) && row.body) {
+    blocks = [{ id: 'seed', x: 16, y: 16, text: row.body }];
+  }
+  return { ...row, blocks: Array.isArray(blocks) ? blocks : [] };
+}
+
 function getNote(id) {
-  return db.prepare(`${NOTE_SELECT} WHERE n.id = ?`).get(id) || null;
+  return hydrateNote(db.prepare(`${NOTE_SELECT} WHERE n.id = ?`).get(id) || null);
+}
+
+// Validate/clamp incoming blocks. Returns null if the shape is wrong.
+function sanitizeBlocks(input) {
+  if (!Array.isArray(input)) return null;
+  const clamp = (v) => Math.max(0, Math.min(Number.isFinite(+v) ? +v : 0, 100000));
+  return input.slice(0, 500).map((b, i) => ({
+    id: typeof b?.id === 'string' && b.id ? b.id.slice(0, 64) : `b${Date.now()}_${i}`,
+    x: clamp(b?.x),
+    y: clamp(b?.y),
+    text: typeof b?.text === 'string' ? b.text.slice(0, 20000) : '',
+  }));
+}
+
+// Plain-text mirror of the blocks (top-to-bottom, left-to-right) kept in `body`
+// for search and backward compatibility.
+function blocksToBody(blocks) {
+  return [...blocks]
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+    .map((b) => b.text)
+    .filter((t) => t.trim())
+    .join('\n');
 }
 
 // Validate an effective attachment: at most one of task/project, and it must exist.
@@ -522,7 +557,7 @@ router.get('/notes', (req, res) => {
   if (req.query.task_id) { clauses.push('n.task_id = ?'); params.push(Number(req.query.task_id)); }
   if (req.query.project_id) { clauses.push('n.project_id = ?'); params.push(Number(req.query.project_id)); }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  res.json(db.prepare(`${NOTE_SELECT} ${where} ORDER BY n.updated_at DESC`).all(...params));
+  res.json(db.prepare(`${NOTE_SELECT} ${where} ORDER BY n.updated_at DESC`).all(...params).map(hydrateNote));
 });
 
 // Defined before /notes/:id so "scratch" isn't matched as an id.
@@ -538,9 +573,16 @@ router.get('/notes/scratch', (req, res) => {
 router.post('/notes', (req, res) => {
   const b = req.body || {};
   if (!validateAttachment({ task_id: b.task_id ?? null, project_id: b.project_id ?? null }, res)) return;
+  let blocks = [];
+  if ('blocks' in b) {
+    blocks = sanitizeBlocks(b.blocks);
+    if (blocks === null) return badRequest(res, 'blocks must be an array');
+  } else if (b.body) {
+    blocks = [{ id: 'seed', x: 16, y: 16, text: String(b.body) }];
+  }
   const info = db
-    .prepare('INSERT INTO notes (title, body, project_id, task_id) VALUES (?,?,?,?)')
-    .run(b.title || '', b.body || '', b.project_id || null, b.task_id || null);
+    .prepare('INSERT INTO notes (title, body, blocks, project_id, task_id) VALUES (?,?,?,?,?)')
+    .run(b.title || '', blocksToBody(blocks), JSON.stringify(blocks), b.project_id || null, b.task_id || null);
   res.status(201).json(getNote(info.lastInsertRowid));
 });
 
@@ -567,7 +609,16 @@ router.patch('/notes/:id', (req, res) => {
   if (!validateAttachment({ task_id: effTask, project_id: effProject }, res)) return;
 
   const updates = {};
-  for (const k of ['title', 'body']) if (k in b) updates[k] = b[k];
+  if ('title' in b) updates.title = b.title;
+  // `blocks` is the source of truth for content; keep `body` as a plain mirror.
+  if ('blocks' in b) {
+    const blocks = sanitizeBlocks(b.blocks);
+    if (blocks === null) return badRequest(res, 'blocks must be an array');
+    updates.blocks = JSON.stringify(blocks);
+    updates.body = blocksToBody(blocks);
+  } else if ('body' in b) {
+    updates.body = b.body;
+  }
   if (touchesAttachment) { updates.task_id = effTask; updates.project_id = effProject; }
 
   const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');

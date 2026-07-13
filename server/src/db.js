@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL DEFAULT '',
   body TEXT NOT NULL DEFAULT '',
+  blocks TEXT NOT NULL DEFAULT '[]',
   project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
   is_scratch INTEGER NOT NULL DEFAULT 0,
@@ -80,6 +81,14 @@ CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
 CREATE INDEX IF NOT EXISTS idx_notes_task ON notes(task_id);
 `);
+
+// Lightweight migration: add a column to an existing table if it's missing.
+// (CREATE TABLE IF NOT EXISTS won't alter tables created by earlier versions.)
+function ensureColumn(table, column, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+ensureColumn('notes', 'blocks', "blocks TEXT NOT NULL DEFAULT '[]'");
 
 const DEFAULT_SETTINGS = {
   workday_minutes: '480',

@@ -84,11 +84,13 @@ module in a toolchain stage, and ships a slim runtime image that runs as a non-r
   with dependency connectors and a today line.
 - **Dependencies** — tasks can depend on other tasks; blocked tasks are labelled, sink in
   ranking, and are never suggested for today. Cycles are rejected.
-- **Notepad** — an always-visible scratch pad docked at the bottom (memonotepad
-  style): type anywhere, it auto-saves. Notes can be **standalone** or **attached** to a
-  single task or project, and any **line or selection can be turned into a task** with one
-  click (first line → title, the rest → task notes). A singleton "Scratch" note is always
-  present; use "＋ New" for additional notes.
+- **Notepad** — an always-visible scratch pad docked at the bottom, on ruled paper. Like
+  OneNote/a paper pad, **click anywhere on the page to start a separate note block** where
+  you clicked (jot document notes in one spot, a phone-call note in another); blocks can be
+  dragged to reposition. Everything auto-saves. A note can be **standalone** or **attached**
+  to a single task or project, and any **line or selection can be turned into a task** with
+  one click (first line → title, the rest → task notes). A singleton "Scratch" note is
+  always present; use "＋ New" for additional pages.
 - **Extras** — subtask checklists, tags with search/filter, recurring tasks
   (daily/weekly/monthly — completing one spawns the next occurrence).
 
