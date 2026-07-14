@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Manrope', sans-serif; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: oklch(85% 0.01 265); border-radius: 4px; }
+input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
+a { color: oklch(56% 0.16 265); }
+a:hover { color: oklch(46% 0.16 265); }
+@keyframes slideIn { from { transform: translateX(28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+</style>
+</helmet>
+
+<div style="{{ mainShellStyle }}">
+
+  <aside style="width:262px;flex-shrink:0;background:oklch(19% 0.035 272);border-right:1px solid oklch(30% 0.02 272);display:flex;flex-direction:column;padding:22px 14px 16px;gap:22px;overflow-y:auto;">
+    <div style="display:flex;align-items:center;gap:11px;padding:0 8px;">
+      <img src="assets/logo.jpg" style="width:36px;height:36px;border-radius:10px;flex-shrink:0;box-shadow:0 6px 16px -6px oklch(62% 0.21 279 / 0.6);">
+      <span style="font-family:'Caslon Antique';font-weight:600;font-size:22px;letter-spacing:0.01em;color:oklch(92% 0.01 265);">this-organiser</span>
+    </div>
+
+    <nav style="display:flex;flex-direction:column;gap:2px;">
+      <button style="{{ navMyDayStyle }}" onClick="{{ goMyDay }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"></line><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"></line><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"></line></svg>
+        <span style="flex:1;text-align:left;">My Day</span>
+      </button>
+      <button style="{{ navUpcomingStyle }}" onClick="{{ goUpcoming }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+        <span style="flex:1;text-align:left;">Upcoming</span>
+      </button>
+      <button style="{{ navAllStyle }}" onClick="{{ goAll }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none"></circle></svg>
+        <span style="flex:1;text-align:left;">All Tasks</span>
+      </button>
+      <button style="{{ navTimelineStyle }}" onClick="{{ goTimeline }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="19" x2="4" y2="10"></line><line x1="12" y1="19" x2="12" y2="5"></line><line x1="20" y1="19" x2="20" y2="13"></line></svg>
+        <span style="flex:1;text-align:left;">Timeline</span>
+      </button>
+    </nav>
+
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-height:0;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 10px 2px;">
+        <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:oklch(66% 0.02 265);">Projects</span>
+        <button style="border:none;background:none;font-size:12px;color:oklch(75% 0.14 279);font-weight:700;cursor:pointer;padding:2px;" onClick="{{ goProjects }}">Manage</button>
+      </div>
+      <sc-for list="{{ sidebarProjects }}" as="p" hint-placeholder-count="3">
+        <button style="{{ p.rowStyle }}" onClick="{{ p.openHandler }}">
+          <span style="{{ p.dotStyle }}"></span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;">{{ p.name }}</span>
+          <sc-if value="{{ p.hasCount }}"><span style="{{ p.countStyle }}">{{ p.openCount }}</span></sc-if>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="border-top:1px solid oklch(30% 0.02 272);padding-top:12px;display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+      <button style="{{ navSettingsStyle }}" onClick="{{ goSettings }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span style="flex:1;text-align:left;">Settings</span>
+      </button>
+      <div style="{{ aiBadgeStyle }}">{{ aiBadgeText }}</div>
+    </div>
+  </aside>
+
+  <main style="{{ mainContentStyle }}">
+    <div style="max-width:760px;margin:0 auto;">
+
+      <sc-if value="{{ isMyDay }}" hint-placeholder-val="{{ false }}">
+        <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px;">
+          <div>
+            <h2 style="margin:0 0 3px;font-size:32px;font-weight:900;letter-spacing:-0.025em;">My Day</h2>
+            <div style="color:oklch(52% 0.02 265);font-size:14px;">{{ myDaySubtitle }}</div>
+          </div>
+          <button style="{{ planButtonStyle }}" onClick="{{ planDay }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.6L19.4 9l-5.6 1.8L12 16l-1.8-5.2L4.6 9l5.6-1.4L12 2z"></path></svg>
+            {{ planButtonLabel }}
+          </button>
+        </header>
+
+        <sc-if value="{{ warnOverdue }}"><div style="{{ bannerWarnStyle }}">{{ warnOverdueText }}</div></sc-if>
+        <sc-if value="{{ warnOverload }}"><div style="{{ bannerWarnStyle }}">{{ warnOverloadText }}</div></sc-if>
+        <sc-if value="{{ showWorkloadInfo }}"><div style="{{ bannerInfoStyle }}">{{ workloadInfoText }}</div></sc-if>
+
+        <sc-if value="{{ hasPlan }}">
+          <div style="{{ aiPanelStyle }}">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <strong style="font-size:14px;">{{ planHeading }}</strong>
+              <button style="{{ linkBtnStyle }}" onClick="{{ dismissPlan }}">Dismiss</button>
+            </div>
+            <p style="margin:6px 0 8px;font-size:13px;color:oklch(38% 0.05 300);">{{ planSummary }}</p>
+            <sc-for list="{{ planItems }}" as="s" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:10px;padding:5px 0;">
+                <button style="{{ suggestionAddStyle }}" onClick="{{ s.addHandler }}" title="Add to My Day">+</button>
+                <span style="font-size:13px;color:oklch(30% 0.04 300);">{{ s.reason }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ showAddAll }}"><button style="{{ smallAiBtnStyle }}" onClick="{{ addAllSuggestions }}">Add all</button></sc-if>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isUpcoming }}" hint-placeholder-val="{{ false }}">
+        <header style="margin-bottom:18px;">
+          <h2 style="margin:0 0 3px;font-size:32px;font-weight:900;letter-spacing:-0.025em;">Upcoming</h2>
+          <div style="color:oklch(52% 0.02 265);font-size:14px;">Grouped by when work should start</div>
+        </header>
+      </sc-if>
+
+      <sc-if value="{{ isAll }}" hint-placeholder-val="{{ false }}">
+        <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:16px;">
+          <h2 style="margin:0;font-size:32px;font-weight:900;letter-spacing:-0.025em;">All Tasks</h2>
+          <button style="{{ planButtonStyle }}" onClick="{{ prioritise }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.6L19.4 9l-5.6 1.8L12 16l-1.8-5.2L4.6 9l5.6-1.4L12 2z"></path></svg>
+            {{ prioritiseButtonLabel }}
+          </button>
+        </header>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+          <input value="{{ search }}" onChange="{{ setSearch }}" placeholder="Search tasks…" style="{{ filterInputStyle }}"></input>
+          <select value="{{ tagFilter }}" onChange="{{ setTagFilter }}" style="{{ filterInputStyle }}">
+            <option value="">All tags</option>
+            <sc-for list="{{ allTags }}" as="t" hint-placeholder-count="2"><option value="{{ t }}">#{{ t }}</option></sc-for>
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:oklch(40% 0.02 265);">
+            <input type="checkbox" checked="{{ showDone }}" onChange="{{ setShowDone }}"></input> show done
+          </label>
+          <sc-if value="{{ hasRanking }}"><button style="{{ linkBtnStyle }}" onClick="{{ clearRanking }}">Clear ranking</button></sc-if>
+        </div>
+        <sc-if value="{{ hasRanking }}"><div style="{{ bannerInfoStyle }}">{{ rankingSummary }}</div></sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isProjectDetail }}" hint-placeholder-val="{{ false }}">
+        <header style="display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:12px;flex:1;">
+            <span style="{{ projectDotBigStyle }}"></span>
+            <input style="{{ bigTitleInputStyle }}" value="{{ projectTitleDraft }}" onChange="{{ setProjectTitleDraft }}" onBlur="{{ commitProjectTitle }}"></input>
+          </div>
+          <button style="{{ dangerBtnStyle }}" onClick="{{ deleteProject }}">Delete</button>
+        </header>
+        <div style="{{ fieldGridStyle }}">
+          <label style="{{ fieldLabelStyle }}">Description</label>
+          <input style="{{ fieldInputStyle }}" placeholder="What is this goal about?" value="{{ projectDescDraft }}" onChange="{{ setProjectDescDraft }}" onBlur="{{ commitProjectDesc }}"></input>
+          <label style="{{ fieldLabelStyle }}">Status</label>
+          <select style="{{ fieldInputStyle }}" value="{{ currentProject.status }}" onChange="{{ setProjectStatus }}">
+            <option value="active">Active</option><option value="on_hold">On hold</option><option value="completed">Completed</option><option value="archived">Archived</option>
+          </select>
+          <label style="{{ fieldLabelStyle }}">Start date</label>
+          <input type="date" style="{{ fieldInputStyle }}" value="{{ currentProject.startDate }}" onChange="{{ setProjectStart }}"></input>
+          <label style="{{ fieldLabelStyle }}">Target date</label>
+          <input type="date" style="{{ fieldInputStyle }}" value="{{ currentProject.targetDate }}" onChange="{{ setProjectTarget }}"></input>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin:16px 0 12px;">
+          <span style="font-size:13px;color:oklch(52% 0.02 265);">{{ projectProgressText }}</span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:oklch(40% 0.02 265);">
+            <input type="checkbox" checked="{{ showDone }}" onChange="{{ setShowDone }}"></input> show done
+          </label>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showTaskList }}" hint-placeholder-val="{{ false }}">
+        <form onSubmit="{{ quickAddSubmit }}" style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid oklch(90% 0.006 265);border-radius:12px;padding:4px 16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,20,43,0.03);">
+          <span style="color:oklch(56% 0.16 265);font-weight:700;font-size:16px;">+</span>
+          <input value="{{ quickAddValue }}" onChange="{{ setQuickAddValue }}" placeholder="{{ quickAddPlaceholder }}" style="flex:1;border:none;outline:none;padding:11px 0;background:transparent;font-size:14.5px;font-family:inherit;color:oklch(22% 0.02 265);"></input>
+        </form>
+
+        <sc-if value="{{ listEmpty }}"><div style="text-align:center;color:oklch(62% 0.02 265);padding:36px 8px;font-size:14px;">{{ listEmptyText }}</div></sc-if>
+
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <sc-for list="{{ listItems }}" as="item" hint-placeholder-count="4">
+            <sc-if value="{{ item.isBucket }}" hint-placeholder-val="{{ false }}">
+              <h3 style="{{ item.bucketStyle }}">{{ item.bucketLabel }} <span style="{{ countPillStyle }}">{{ item.bucketCount }}</span></h3>
+            </sc-if>
+            <sc-if value="{{ item.isTask }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="{{ item.rowStyle }}" onClick="{{ item.selectHandler }}">
+                  <button style="{{ item.checkStyle }}" onClick="{{ item.toggleDoneHandler }}" title="Toggle complete">{{ item.checkGlyph }}</button>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:14.5px;display:flex;gap:8px;align-items:center;">
+                      <sc-if value="{{ item.blocked }}"><span style="{{ blockedBadgeStyle }}">Blocked</span></sc-if>
+                      <span style="{{ item.titleStyle }}">{{ item.title }}</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+                      <sc-if value="{{ item.showProjectBadge }}"><span style="{{ item.projectBadgeStyle }}">{{ item.projectName }}</span></sc-if>
+                      <sc-if value="{{ item.showDue }}"><span style="{{ item.dueBadgeStyle }}">due {{ item.dueLabel }}</span></sc-if>
+                      <sc-if value="{{ item.showDo }}"><span style="{{ badgeNeutralStyle }}">do {{ item.doLabel }}</span></sc-if>
+                      <sc-if value="{{ item.showEstimate }}"><span style="{{ badgeNeutralStyle }}">{{ item.estimateLabel }}</span></sc-if>
+                      <sc-if value="{{ item.showPriority }}"><span style="{{ item.priorityBadgeStyle }}">{{ item.priorityLabel }}</span></sc-if>
+                      <sc-if value="{{ item.showSubtasks }}"><span style="{{ badgeNeutralStyle }}">{{ item.subtaskLabel }}</span></sc-if>
+                      <sc-if value="{{ item.recurring }}"><span style="{{ badgeNeutralStyle }}" title="Recurring">↻ repeats</span></sc-if>
+                      <sc-for list="{{ item.tags }}" as="tg" hint-placeholder-count="0"><span style="{{ tagBadgeStyle }}">#{{ tg }}</span></sc-for>
+                    </div>
+                  </div>
+                  <sc-if value="{{ item.showMyDayToggle }}">
+                    <button style="{{ item.myDayToggleStyle }}" onClick="{{ item.toggleMyDayHandler }}" title="Toggle My Day">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"></line><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"></line><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"></line></svg>
+                    </button>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ item.showReason }}"><div style="font-size:12px;color:oklch(48% 0.12 300);padding:2px 0 4px 46px;">→ {{ item.reason }}</div></sc-if>
+              </div>
+            </sc-if>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTimeline }}" hint-placeholder-val="{{ false }}">
+        <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:16px;">
+          <div>
+            <h2 style="margin:0 0 3px;font-size:32px;font-weight:900;letter-spacing:-0.025em;">Timeline</h2>
+            <div style="color:oklch(52% 0.02 265);font-size:14px;">Bars run from Do date to Due date</div>
+          </div>
+          <select style="{{ filterInputStyle }}" value="{{ timelineProjectFilter }}" onChange="{{ setTimelineFilter }}">
+            <option value="">All projects</option>
+            <sc-for list="{{ projects }}" as="pr" hint-placeholder-count="2"><option value="{{ pr.id }}">{{ pr.name }}</option></sc-for>
+          </select>
+        </header>
+        <sc-if value="{{ timelineEmpty }}"><div style="text-align:center;color:oklch(62% 0.02 265);padding:36px 8px;font-size:14px;">No dated tasks — add a due date to see them here.</div></sc-if>
+        <div style="background:#fff;border:1px solid oklch(90% 0.006 265);border-radius:14px;padding:18px 20px 8px;">
+          <sc-for list="{{ timelineGroups }}" as="grp" hint-placeholder-count="2">
+            <div style="margin-bottom:16px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">
+                <span style="{{ grp.dotStyle }}"></span>
+                <span style="font-weight:700;font-size:13.5px;">{{ grp.name }}</span>
+              </div>
+              <sc-for list="{{ grp.tasks }}" as="t" hint-placeholder-count="2">
+                <div style="display:grid;grid-template-columns:180px 1fr;align-items:center;gap:12px;padding:6px 0;cursor:pointer;" onClick="{{ t.selectHandler }}">
+                  <span style="{{ t.labelStyle }}">{{ t.title }}</span>
+                  <div style="position:relative;height:20px;background:oklch(96% 0.006 265);border-radius:6px;">
+                    <div style="{{ t.barStyle }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isProjects }}" hint-placeholder-val="{{ false }}">
+        <header style="margin-bottom:16px;"><h2 style="margin:0;font-size:32px;font-weight:900;letter-spacing:-0.025em;">Projects &amp; Goals</h2></header>
+        <form onSubmit="{{ createProjectSubmit }}" style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid oklch(90% 0.006 265);border-radius:12px;padding:4px 16px;margin-bottom:18px;">
+          <span style="color:oklch(56% 0.16 265);font-weight:700;font-size:16px;">+</span>
+          <input value="{{ newProjectName }}" onChange="{{ setNewProjectName }}" placeholder="New project or goal — press Enter" style="flex:1;border:none;outline:none;padding:11px 0;background:transparent;font-size:14.5px;font-family:inherit;"></input>
+        </form>
+        <sc-if value="{{ projectsEmpty }}"><div style="text-align:center;color:oklch(62% 0.02 265);padding:36px 8px;font-size:14px;">No projects yet — create one above to group tasks under a larger goal.</div></sc-if>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;">
+          <sc-for list="{{ projectCards }}" as="pc" hint-placeholder-count="3">
+            <div style="{{ pc.cardStyle }}">
+              <div style="display:flex;align-items:center;gap:9px;cursor:pointer;" onClick="{{ pc.openHandler }}">
+                <span style="{{ pc.dotStyle }}"></span>
+                <h3 style="margin:0;font-size:15px;font-weight:700;">{{ pc.name }}</h3>
+              </div>
+              <div style="font-size:12.5px;color:oklch(55% 0.02 265);">{{ pc.description }}</div>
+              <div style="height:6px;background:oklch(93% 0.01 265);border-radius:3px;overflow:hidden;">
+                <div style="{{ pc.progressStyle }}"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:oklch(52% 0.02 265);">
+                <span>{{ pc.doneTotalText }}</span><span>{{ pc.targetText }}</span>
+              </div>
+              <select style="{{ smallSelectStyle }}" value="{{ pc.status }}" onChange="{{ pc.statusHandler }}">
+                <option value="active">Active</option><option value="on_hold">On hold</option><option value="completed">Completed</option><option value="archived">Archived</option>
+              </select>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+        <header style="margin-bottom:18px;"><h2 style="margin:0;font-size:32px;font-weight:900;letter-spacing:-0.025em;">Settings</h2></header>
+        <div style="{{ fieldGridStyle }}max-width:520px;">
+          <label style="{{ fieldLabelStyle }}">Workday length</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="number" min="1" max="24" step="0.5" style="{{ fieldInputStyle }}width:90px;" value="{{ workdayHoursValue }}" onChange="{{ setWorkdayHours }}"></input>
+            <span style="font-size:12.5px;color:oklch(58% 0.02 265);">hours — used for Do-date defaults and workload warnings ({{ workdayFormatted }})</span>
+          </div>
+          <label style="{{ fieldLabelStyle }}">AI planning</label>
+          <div style="{{ aiStatusTextStyle }}">{{ aiStatusText }}</div>
+        </div>
+        <div style="{{ bannerInfoStyle }}margin-top:20px;max-width:520px;"><strong>How Do dates work:</strong> by default, Do date = Due date − Estimated TTC. Editing a Do date directly makes it manual.</div>
+      </sc-if>
+
+    </div>
+  </main>
+
+  <aside style="{{ notepadWrapStyle }}">
+    <div style="{{ notepadResizeHandleStyle }}" onMouseDown="{{ startNotepadResize }}">
+      <div style="width:36px;height:4px;border-radius:2px;background:oklch(40% 0.02 272);"></div>
+    </div>
+    <div style="{{ notepadHeaderStyle }}">
+      <span style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:13.5px;color:oklch(92% 0.01 265);letter-spacing:-0.01em;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+        Notepad
+      </span>
+      <select style="{{ notepadSelectStyle }}" value="{{ activeNotepadId }}" onChange="{{ selectNotepad }}">
+        <sc-for list="{{ notepads }}" as="n" hint-placeholder-count="1">
+          <option value="{{ n.id }}">{{ n.title }}</option>
+        </sc-for>
+      </select>
+      <button style="{{ notepadBtnStyle }}" onClick="{{ addNotepad }}">+ New</button>
+      <select style="{{ notepadLinkSelectStyle }}" value="{{ notepadLinkValue }}" onChange="{{ setNotepadLink }}">
+        <sc-for list="{{ notepadLinkOptions }}" as="opt" hint-placeholder-count="1">
+          <option value="{{ opt.value }}">{{ opt.label }}</option>
+        </sc-for>
+      </select>
+      <button style="{{ notepadConvertBtnStyle }}" onClick="{{ convertNotepadToTask }}">Convert to task</button>
+      <button style="{{ notepadCollapseBtnStyle }}" onClick="{{ toggleNotepad }}">{{ notepadToggleGlyph }}</button>
+    </div>
+    <div style="{{ notepadBodyStyle }}">
+      <textarea style="{{ notepadTextareaStyle }}" value="{{ notepadText }}" onChange="{{ setNotepadText }}" placeholder="Jot down anything — quick notes, scratch thoughts, things to remember…"></textarea>
+    </div>
+  </aside>
+
+  <sc-if value="{{ hasSelectedTask }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(20,20,40,0.18);z-index:40;animation:fadeIn 0.15s ease;" onClick="{{ closeDetail }}"></div>
+    <aside style="width:400px;flex-shrink:0;background:#fff;border-left:1px solid oklch(90% 0.006 265);padding:20px 22px 30px;position:fixed;top:0;right:0;height:100vh;overflow-y:auto;z-index:41;box-shadow:-8px 0 32px rgba(20,20,40,0.10);animation:slideIn 0.18s ease;" onClick="{{ stopPropagation }}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <button style="{{ myDayBigToggleStyle }}" onClick="{{ toggleSelectedMyDay }}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"></line><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"></line><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"></line></svg>
+          {{ myDayBigToggleLabel }}
+        </button>
+        <button style="{{ linkBtnStyle }}" onClick="{{ closeDetail }}">Close ✕</button>
+      </div>
+
+      <input style="{{ detailTitleStyle }}" value="{{ titleDraft }}" onChange="{{ setTitleDraft }}" onBlur="{{ commitTitle }}"></input>
+
+      <div style="{{ fieldGridStyle }}">
+        <label style="{{ fieldLabelStyle }}">Status</label>
+        <select style="{{ fieldInputStyle }}" value="{{ selectedTask.status }}" onChange="{{ setStatus }}">
+          <option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="cancelled">Cancelled</option>
+        </select>
+        <label style="{{ fieldLabelStyle }}">Project</label>
+        <select style="{{ fieldInputStyle }}" value="{{ selectedProjectIdValue }}" onChange="{{ setTaskProject }}">
+          <option value="">(none)</option>
+          <sc-for list="{{ projects }}" as="pr" hint-placeholder-count="2"><option value="{{ pr.id }}">{{ pr.name }}</option></sc-for>
+        </select>
+        <label style="{{ fieldLabelStyle }}">Priority</label>
+        <select style="{{ fieldInputStyle }}" value="{{ selectedTask.priority }}" onChange="{{ setPriority }}">
+          <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option>
+        </select>
+        <label style="{{ fieldLabelStyle }}">Due date</label>
+        <input type="date" style="{{ fieldInputStyle }}" value="{{ dueDateValue }}" onChange="{{ setDueDate }}"></input>
+        <label style="{{ fieldLabelStyle }}">Do date <sc-if value="{{ doDateAuto }}"><span style="color:oklch(62% 0.02 265);">(auto)</span></sc-if></label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="date" style="{{ fieldInputStyle }}" value="{{ doDateValue }}" onChange="{{ setDoDate }}"></input>
+          <sc-if value="{{ doDateManualFlag }}"><button style="{{ linkBtnStyle }}" title="Reset to automatic" onClick="{{ resetDoDate }}">reset</button></sc-if>
+        </div>
+        <label style="{{ fieldLabelStyle }}">Estimated TTC</label>
+        <input style="{{ fieldInputStyle }}" placeholder="e.g. 2h, 90m, 1d 4h" value="{{ estimateDraftText }}" onChange="{{ setEstimateDraft }}" onBlur="{{ commitEstimate }}"></input>
+        <label style="{{ fieldLabelStyle }}">Repeat</label>
+        <select style="{{ fieldInputStyle }}" value="{{ recurrenceValue }}" onChange="{{ setRecurrence }}">
+          <option value="">Never</option><option value="daily:1">Daily</option><option value="weekly:1">Weekly</option><option value="weekly:2">Every 2 weeks</option><option value="monthly:1">Monthly</option>
+        </select>
+        <label style="{{ fieldLabelStyle }}">Tags</label>
+        <input style="{{ fieldInputStyle }}" placeholder="comma, separated" value="{{ tagsDraftText }}" onChange="{{ setTagsDraft }}" onBlur="{{ commitTags }}"></input>
+      </div>
+
+      <label style="{{ sectionLabelStyle }}">Notes</label>
+      <textarea style="{{ textareaStyle }}" rows="4" placeholder="Add detail later…" value="{{ notesDraft }}" onChange="{{ setNotesDraft }}" onBlur="{{ commitNotes }}"></textarea>
+
+      <label style="{{ sectionLabelStyle }}">Checklist</label>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <sc-for list="{{ selectedSubtasks }}" as="s" hint-placeholder-count="2">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" checked="{{ s.done }}" onChange="{{ s.toggleHandler }}"></input>
+            <span style="{{ s.style }}">{{ s.title }}</span>
+            <button style="{{ linkBtnStyle }}" onClick="{{ s.removeHandler }}">✕</button>
+          </div>
+        </sc-for>
+        <form onSubmit="{{ addSubtaskSubmit }}" style="display:flex;gap:8px;">
+          <input style="{{ fieldInputStyle }}" value="{{ newSubtaskText }}" onChange="{{ setNewSubtaskText }}" placeholder="Add checklist item"></input>
+        </form>
+      </div>
+
+      <label style="{{ sectionLabelStyle }}">Depends on</label>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <sc-for list="{{ selectedDependencies }}" as="d" hint-placeholder-count="1">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="{{ d.style }}flex:1;">{{ d.title }}</span>
+            <button style="{{ linkBtnStyle }}" onClick="{{ d.removeHandler }}">✕</button>
+          </div>
+        </sc-for>
+        <select style="{{ fieldInputStyle }}" value="" onChange="{{ addDependency }}">
+          <option value="">Add dependency…</option>
+          <sc-for list="{{ dependencyCandidates }}" as="c" hint-placeholder-count="2"><option value="{{ c.id }}">{{ c.label }}</option></sc-for>
+        </select>
+      </div>
+
+      <div style="margin-top:24px;border-top:1px solid oklch(93% 0.006 265);padding-top:16px;">
+        <button style="{{ dangerBtnStyle }}" onClick="{{ deleteSelectedTask }}">Delete task</button>
+      </div>
+    </aside>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const C = {
+  bg: 'oklch(95% 0.008 264)', sidebarBg: 'oklch(19% 0.035 272)', sidebarBg2: 'oklch(15% 0.03 272)', border: 'oklch(88% 0.008 264)',
+  textPrimary: 'oklch(16% 0.02 265)', textSecondary: 'oklch(48% 0.02 265)', textMuted: 'oklch(63% 0.015 265)',
+  sidebarText: 'oklch(92% 0.01 265)', sidebarTextMuted: 'oklch(66% 0.02 265)',
+  card: '#ffffff', accent: 'oklch(62% 0.21 279)', accentDark: 'oklch(46% 0.18 279)',
+  accentLight: 'oklch(93% 0.045 279)', success: 'oklch(64% 0.16 155)', successLight: 'oklch(93% 0.06 155)',
+  warning: 'oklch(74% 0.16 68)', warningLight: 'oklch(95% 0.07 75)', warningDark: 'oklch(42% 0.1 75)',
+  danger: 'oklch(60% 0.22 25)', dangerLight: 'oklch(95% 0.06 25)', dangerDark: 'oklch(45% 0.18 25)',
+  ai: 'oklch(60% 0.18 300)', aiLight: 'oklch(95% 0.04 300)',
+};
+
+function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function todayISO() { return iso(new Date()); }
+function parseISODate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function addDays(base, n) { const dt = parseISODate(base); dt.setDate(dt.getDate() + n); return iso(dt); }
+function diffDays(a, b) { return Math.round((parseISODate(b) - parseISODate(a)) / 86400000); }
+function formatDate(s) {
+  if (!s) return '';
+  const date = parseISODate(s); const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((date - today) / 86400000);
+  if (diff === 0) return 'Today'; if (diff === 1) return 'Tomorrow'; if (diff === -1) return 'Yesterday';
+  if (diff > 1 && diff < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
+function formatEstimate(minutes, workdayMinutes = 480) {
+  if (!minutes) return ''; const parts = []; let rest = minutes;
+  if (rest >= workdayMinutes) { parts.push(`${Math.floor(rest / workdayMinutes)}d`); rest %= workdayMinutes; }
+  if (rest >= 60) { parts.push(`${Math.floor(rest / 60)}h`); rest %= 60; }
+  if (rest > 0) parts.push(`${rest}m`);
+  return parts.join(' ');
+}
+function parseEstimateText(input, workdayMinutes = 480) {
+  if (!input || !input.trim()) return null;
+  const s = input.trim().toLowerCase();
+  const clock = s.match(/^(\d+):(\d{2})$/);
+  if (clock) return parseInt(clock[1], 10) * 60 + parseInt(clock[2], 10);
+  let minutes = 0, matched = false;
+  const re = /(\d+(?:\.\d+)?)\s*(d|day|days|h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/g;
+  let m;
+  while ((m = re.exec(s))) { matched = true; const v = parseFloat(m[1]); if (m[2].startsWith('d')) minutes += v * workdayMinutes; else if (m[2].startsWith('h')) minutes += v * 60; else minutes += v; }
+  if (!matched) { const bare = parseFloat(s); if (!Number.isNaN(bare)) return Math.round(bare * 60); return null; }
+  return Math.round(minutes);
+}
+let UID = 1000;
+function nextId() { return ++UID; }
+const TODAY = todayISO();
+
+const INITIAL_PROJECTS = [
+  { id: 1, name: 'Website Relaunch', description: 'New marketing site + design system', color: 'oklch(56% 0.16 265)', status: 'active', startDate: addDays(TODAY, -20), targetDate: addDays(TODAY, 25) },
+  { id: 2, name: 'Q3 Planning', description: 'Roadmap and budget for next quarter', color: 'oklch(60% 0.14 155)', status: 'active', startDate: addDays(TODAY, -5), targetDate: addDays(TODAY, 18) },
+  { id: 3, name: 'Personal', description: 'Life admin and errands', color: 'oklch(72% 0.15 75)', status: 'on_hold', startDate: null, targetDate: null },
+];
+
+const INITIAL_TASKS = [
+  { id: 1, title: 'Fix hero image responsive bug', projectId: 1, status: 'todo', priority: 'urgent', dueDate: addDays(TODAY, -1), doDate: addDays(TODAY, -2), doDateManual: false, estimatedMinutes: 90, tags: ['bug'], subtasks: [], dependencies: [], myDayDate: TODAY, recurrence: null, notes: '' },
+  { id: 2, title: 'Write homepage copy', projectId: 1, status: 'todo', priority: 'high', dueDate: addDays(TODAY, 2), doDate: addDays(TODAY, 1), doDateManual: false, estimatedMinutes: 180, tags: ['content'], subtasks: [{ id: 101, title: 'Hero section', done: true }, { id: 102, title: 'Features section', done: false }], dependencies: [], myDayDate: TODAY, recurrence: null, notes: 'Tone: confident, simple.' },
+  { id: 3, title: 'Review design system tokens', projectId: 1, status: 'todo', priority: 'medium', dueDate: addDays(TODAY, 4), doDate: addDays(TODAY, 3), doDateManual: false, estimatedMinutes: 60, tags: [], subtasks: [], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+  { id: 4, title: 'Set up analytics dashboard', projectId: 1, status: 'todo', priority: 'low', dueDate: addDays(TODAY, 10), doDate: addDays(TODAY, 9), doDateManual: false, estimatedMinutes: 120, tags: ['analytics'], subtasks: [], dependencies: [2], myDayDate: null, recurrence: null, notes: '' },
+  { id: 5, title: 'Draft Q3 budget outline', projectId: 2, status: 'todo', priority: 'urgent', dueDate: addDays(TODAY, 1), doDate: TODAY, doDateManual: false, estimatedMinutes: 120, tags: ['budget'], subtasks: [], dependencies: [], myDayDate: TODAY, recurrence: null, notes: '' },
+  { id: 6, title: 'Collect team OKR proposals', projectId: 2, status: 'todo', priority: 'medium', dueDate: addDays(TODAY, 6), doDate: addDays(TODAY, 5), doDateManual: false, estimatedMinutes: 240, tags: [], subtasks: [{ id: 103, title: 'Design team', done: false }, { id: 104, title: 'Eng team', done: false }, { id: 105, title: 'Marketing', done: true }], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+  { id: 7, title: 'Schedule leadership review', projectId: 2, status: 'todo', priority: 'high', dueDate: addDays(TODAY, 12), doDate: addDays(TODAY, 11), doDateManual: false, estimatedMinutes: 30, tags: [], subtasks: [], dependencies: [6], myDayDate: null, recurrence: null, notes: '' },
+  { id: 8, title: 'Renew car insurance', projectId: 3, status: 'todo', priority: 'medium', dueDate: addDays(TODAY, 3), doDate: addDays(TODAY, 3), doDateManual: true, estimatedMinutes: 20, tags: [], subtasks: [], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+  { id: 9, title: 'Water the plants', projectId: 3, status: 'todo', priority: 'low', dueDate: null, doDate: TODAY, doDateManual: true, estimatedMinutes: 10, tags: [], subtasks: [], dependencies: [], myDayDate: TODAY, recurrence: { freq: 'weekly', interval: 1 }, notes: '' },
+  { id: 10, title: 'Reply to Sam re: contract', projectId: null, status: 'todo', priority: 'high', dueDate: TODAY, doDate: TODAY, doDateManual: false, estimatedMinutes: 15, tags: ['email'], subtasks: [], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+  { id: 11, title: 'Read "Shape Up" chapter 3', projectId: null, status: 'todo', priority: 'low', dueDate: addDays(TODAY, 20), doDate: addDays(TODAY, 18), doDateManual: false, estimatedMinutes: 45, tags: ['reading'], subtasks: [], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+  { id: 12, title: 'Kickoff meeting notes', projectId: 1, status: 'done', priority: 'medium', dueDate: addDays(TODAY, -6), doDate: addDays(TODAY, -6), doDateManual: false, estimatedMinutes: 30, tags: [], subtasks: [], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+  { id: 13, title: 'Book flights for offsite', projectId: 2, status: 'done', priority: 'medium', dueDate: addDays(TODAY, -2), doDate: addDays(TODAY, -3), doDateManual: false, estimatedMinutes: 40, tags: ['travel'], subtasks: [], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+  { id: 14, title: 'Plan weekend trip', projectId: 3, status: 'todo', priority: 'low', dueDate: addDays(TODAY, 30), doDate: addDays(TODAY, 28), doDateManual: false, estimatedMinutes: 60, tags: ['fun'], subtasks: [], dependencies: [], myDayDate: null, recurrence: null, notes: '' },
+];
+
+const PRIORITY_LABEL = { urgent: 'Urgent', high: 'High', medium: '', low: 'Low' };
+const PRIORITY_COLOR = { urgent: C.danger, high: C.warningDark, low: C.textMuted };
+const PRIORITY_BG = { urgent: C.dangerLight, high: C.warningLight, low: 'oklch(93% 0.01 265)' };
+const PRIORITY_WEIGHT = { urgent: 4, high: 3, medium: 2, low: 1 };
+
+class Component extends DCLogic {
+  state = {
+    view: { name: 'myday' },
+    tasks: INITIAL_TASKS,
+    projects: INITIAL_PROJECTS,
+    selectedTaskId: null,
+    workdayMinutes: 480,
+    aiAvailable: false,
+    quickAddValue: '',
+    search: '', tagFilter: '', showDone: false,
+    ranking: null, rankingBusy: false,
+    plan: null, planning: false,
+    newProjectName: '',
+    titleDraft: '', notesDraft: '', estimateDraftText: '', tagsDraftText: '', newSubtaskText: '',
+    projectTitleDraft: '', projectDescDraft: '',
+    timelineProjectFilter: '',
+    notepads: this.loadNotepads(),
+    activeNotepadId: 1,
+    notepadOpen: true, notepadHeight: 230, isMobile: (typeof window !== 'undefined' && window.innerWidth <= 780),
+  };
+
+  loadNotepads() {
+    try {
+      const raw = localStorage.getItem('tasks_notepads_v2');
+      if (raw) return JSON.parse(raw);
+    } catch (err) {}
+    return [{ id: 1, title: 'Notepad 1', text: '', linkType: null, linkId: null }];
+  }
+  saveNotepads(notepads) { try { localStorage.setItem('tasks_notepads_v2', JSON.stringify(notepads)); } catch (err) {} }
+
+  componentDidMount() {
+    this._onResize = () => this.setState({ isMobile: window.innerWidth <= 780 });
+    window.addEventListener('resize', this._onResize);
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this._onResize); }
+
+  setNotepadText = (e) => {
+    const v = e.target.value;
+    this.setState((s) => {
+      const notepads = s.notepads.map((n) => (n.id === s.activeNotepadId ? { ...n, text: v } : n));
+      this.saveNotepads(notepads);
+      return { notepads };
+    });
+  };
+  toggleNotepad = () => this.setState((s) => ({ notepadOpen: !s.notepadOpen }));
+  selectNotepad = (e) => this.setState({ activeNotepadId: Number(e.target.value), notepadOpen: true });
+  addNotepad = () => {
+    this.setState((s) => {
+      const id = Math.max(0, ...s.notepads.map((n) => n.id)) + 1;
+      const notepads = [...s.notepads, { id, title: `Notepad ${id}`, text: '', linkType: null, linkId: null }];
+      this.saveNotepads(notepads);
+      return { notepads, activeNotepadId: id, notepadOpen: true };
+    });
+  };
+  setNotepadLink = (e) => {
+    const v = e.target.value;
+    const [linkType, linkIdRaw] = v ? v.split(':') : [null, null];
+    this.setState((s) => {
+      const notepads = s.notepads.map((n) => (n.id === s.activeNotepadId ? { ...n, linkType: linkType || null, linkId: linkIdRaw ? Number(linkIdRaw) : null } : n));
+      this.saveNotepads(notepads);
+      return { notepads };
+    });
+  };
+  convertNotepadToTask = () => {
+    const n = this.state.notepads.find((x) => x.id === this.state.activeNotepadId);
+    if (!n || !n.text.trim()) return;
+    const title = n.text.trim().split('\n')[0].slice(0, 140);
+    const task = { id: nextId(), title, projectId: n.linkType === 'project' ? n.linkId : null, status: 'todo', priority: 'medium', dueDate: null, doDate: null, doDateManual: false, estimatedMinutes: null, tags: [], subtasks: [], dependsOn: [], notes: '', myDay: false };
+    this.setState((s) => ({ tasks: [task, ...s.tasks] }));
+  };
+  startNotepadResize = (e) => {
+    e.preventDefault();
+    const startY = e.clientY, startH = this.state.notepadHeight;
+    const onMove = (ev) => this.setState({ notepadHeight: Math.max(140, Math.min(560, startH - (ev.clientY - startY))) });
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+  };
+
+  goMyDay = () => this.setState({ view: { name: 'myday' } });
+  goUpcoming = () => this.setState({ view: { name: 'upcoming' } });
+  goAll = () => this.setState({ view: { name: 'all' } });
+  goTimeline = () => this.setState({ view: { name: 'timeline' } });
+  goProjects = () => this.setState({ view: { name: 'projects' } });
+  goSettings = () => this.setState({ view: { name: 'settings' } });
+  openProject = (id) => {
+    const p = this.state.projects.find((x) => x.id === id);
+    this.setState({ view: { name: 'project', projectId: id }, projectTitleDraft: p ? p.name : '', projectDescDraft: p ? p.description : '', showDone: false });
+  };
+  stopPropagation = (e) => e.stopPropagation();
+
+  selectTask = (id) => {
+    const t = this.state.tasks.find((x) => x.id === id);
+    if (!t) return;
+    this.setState({
+      selectedTaskId: id, titleDraft: t.title, notesDraft: t.notes || '',
+      estimateDraftText: formatEstimate(t.estimatedMinutes, this.state.workdayMinutes), tagsDraftText: (t.tags || []).join(', '), newSubtaskText: '',
+    });
+  };
+  closeDetail = () => this.setState({ selectedTaskId: null });
+
+  patchTask(id, patch) {
+    this.setState((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+  }
+  toggleTaskDone = (id) => (e) => {
+    e.stopPropagation();
+    const t = this.state.tasks.find((x) => x.id === id);
+    this.patchTask(id, { status: t.status === 'done' ? 'todo' : 'done' });
+  };
+  toggleMyDay = (id) => (e) => {
+    e && e.stopPropagation();
+    const t = this.state.tasks.find((x) => x.id === id);
+    this.patchTask(id, { myDayDate: t.myDayDate === TODAY ? null : TODAY });
+  };
+  toggleSelectedMyDay = () => { const t = this.selectedTask(); if (t) this.toggleMyDay(t.id)(); };
+
+  quickAddSubmit = (e) => {
+    e.preventDefault();
+    const title = this.state.quickAddValue.trim();
+    if (!title) return;
+    const v = this.state.view;
+    const defaults = {};
+    if (v.name === 'myday') defaults.myDayDate = TODAY;
+    if (v.name === 'project') defaults.projectId = v.projectId;
+    const task = { id: nextId(), title, projectId: defaults.projectId ?? null, status: 'todo', priority: 'medium', dueDate: null, doDate: null, doDateManual: false, estimatedMinutes: null, tags: [], subtasks: [], dependencies: [], myDayDate: defaults.myDayDate ?? null, recurrence: null, notes: '' };
+    this.setState((s) => ({ tasks: [task, ...s.tasks], quickAddValue: '' }));
+  };
+  setQuickAddValue = (e) => this.setState({ quickAddValue: e.target.value });
+
+  setSearch = (e) => this.setState({ search: e.target.value });
+  setTagFilter = (e) => this.setState({ tagFilter: e.target.value });
+  setShowDone = (e) => this.setState({ showDone: e.target.checked });
+
+  selectedTask() { return this.state.tasks.find((t) => t.id === this.state.selectedTaskId); }
+
+  setTitleDraft = (e) => this.setState({ titleDraft: e.target.value });
+  commitTitle = () => { const t = this.selectedTask(); if (t && this.state.titleDraft.trim() && this.state.titleDraft !== t.title) this.patchTask(t.id, { title: this.state.titleDraft.trim() }); };
+  setStatus = (e) => this.patchTask(this.selectedTask().id, { status: e.target.value });
+  setPriority = (e) => this.patchTask(this.selectedTask().id, { priority: e.target.value });
+  setTaskProject = (e) => this.patchTask(this.selectedTask().id, { projectId: e.target.value ? Number(e.target.value) : null });
+  setDueDate = (e) => this.patchTask(this.selectedTask().id, { dueDate: e.target.value || null });
+  setDoDate = (e) => this.patchTask(this.selectedTask().id, { doDate: e.target.value || null, doDateManual: true });
+  resetDoDate = () => { const t = this.selectedTask(); this.patchTask(t.id, { doDateManual: false, doDate: t.dueDate }); };
+  setEstimateDraft = (e) => this.setState({ estimateDraftText: e.target.value });
+  commitEstimate = () => {
+    const t = this.selectedTask(); if (!t) return;
+    const minutes = parseEstimateText(this.state.estimateDraftText, this.state.workdayMinutes);
+    this.patchTask(t.id, { estimatedMinutes: minutes });
+  };
+  setRecurrence = (e) => {
+    const v = e.target.value;
+    if (!v) return this.patchTask(this.selectedTask().id, { recurrence: null });
+    const [freq, interval] = v.split(':');
+    this.patchTask(this.selectedTask().id, { recurrence: { freq, interval: Number(interval) } });
+  };
+  setTagsDraft = (e) => this.setState({ tagsDraftText: e.target.value });
+  commitTags = () => { const tags = this.state.tagsDraftText.split(',').map((x) => x.trim()).filter(Boolean); this.patchTask(this.selectedTask().id, { tags }); };
+  setNotesDraft = (e) => this.setState({ notesDraft: e.target.value });
+  commitNotes = () => { const t = this.selectedTask(); if (t && this.state.notesDraft !== t.notes) this.patchTask(t.id, { notes: this.state.notesDraft }); };
+
+  addSubtaskSubmit = (e) => {
+    e.preventDefault();
+    const title = this.state.newSubtaskText.trim(); if (!title) return;
+    const t = this.selectedTask();
+    this.patchTask(t.id, { subtasks: [...t.subtasks, { id: nextId(), title, done: false }] });
+    this.setState({ newSubtaskText: '' });
+  };
+  setNewSubtaskText = (e) => this.setState({ newSubtaskText: e.target.value });
+  toggleSubtask = (taskId, subId) => () => {
+    const t = this.state.tasks.find((x) => x.id === taskId);
+    this.patchTask(taskId, { subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) });
+  };
+  removeSubtask = (taskId, subId) => () => {
+    const t = this.state.tasks.find((x) => x.id === taskId);
+    this.patchTask(taskId, { subtasks: t.subtasks.filter((s) => s.id !== subId) });
+  };
+  addDependency = (e) => {
+    const id = Number(e.target.value); if (!id) return;
+    const t = this.selectedTask();
+    this.patchTask(t.id, { dependencies: [...t.dependencies, id] });
+  };
+  removeDependency = (taskId, depId) => () => {
+    const t = this.state.tasks.find((x) => x.id === taskId);
+    this.patchTask(taskId, { dependencies: t.dependencies.filter((d) => d !== depId) });
+  };
+  deleteSelectedTask = () => {
+    const t = this.selectedTask(); if (!t) return;
+    if (!confirm(`Delete "${t.title}"?`)) return;
+    this.setState((s) => ({ tasks: s.tasks.filter((x) => x.id !== t.id), selectedTaskId: null }));
+  };
+
+  createProjectSubmit = (e) => {
+    e.preventDefault();
+    const name = this.state.newProjectName.trim(); if (!name) return;
+    const palette = ['oklch(56% 0.16 265)', 'oklch(60% 0.14 155)', 'oklch(72% 0.15 75)', 'oklch(58% 0.16 25)', 'oklch(58% 0.14 300)'];
+    const p = { id: nextId(), name, description: '', color: palette[this.state.projects.length % palette.length], status: 'active', startDate: null, targetDate: null };
+    this.setState((s) => ({ projects: [...s.projects, p], newProjectName: '' }));
+    this.openProject(p.id);
+  };
+  setNewProjectName = (e) => this.setState({ newProjectName: e.target.value });
+  patchProject(id, patch) { this.setState((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) })); }
+  setProjectTitleDraft = (e) => this.setState({ projectTitleDraft: e.target.value });
+  commitProjectTitle = () => { const p = this.currentProject(); if (p && this.state.projectTitleDraft.trim() && this.state.projectTitleDraft !== p.name) this.patchProject(p.id, { name: this.state.projectTitleDraft.trim() }); };
+  setProjectDescDraft = (e) => this.setState({ projectDescDraft: e.target.value });
+  commitProjectDesc = () => { const p = this.currentProject(); if (p) this.patchProject(p.id, { description: this.state.projectDescDraft }); };
+  setProjectStatus = (e) => this.patchProject(this.currentProject().id, { status: e.target.value });
+  setProjectStart = (e) => this.patchProject(this.currentProject().id, { startDate: e.target.value || null });
+  setProjectTarget = (e) => this.patchProject(this.currentProject().id, { targetDate: e.target.value || null });
+  deleteProject = () => {
+    const p = this.currentProject(); if (!p) return;
+    if (!confirm(`Delete project "${p.name}"? Its tasks will be kept without a project.`)) return;
+    this.setState((s) => ({
+      projects: s.projects.filter((x) => x.id !== p.id),
+      tasks: s.tasks.map((t) => (t.projectId === p.id ? { ...t, projectId: null } : t)),
+      view: { name: 'projects' },
+    }));
+  };
+  currentProject() { return this.state.projects.find((p) => p.id === this.state.view.projectId); }
+
+  setWorkdayHours = (e) => this.setState({ workdayMinutes: Math.round(Number(e.target.value) * 60) });
+  setTimelineFilter = (e) => this.setState({ timelineProjectFilter: e.target.value });
+
+  planDay = () => {
+    this.setState({ planning: true, plan: null });
+    setTimeout(() => {
+      const inDay = new Set(this.state.tasks.filter((t) => t.myDayDate === TODAY).map((t) => t.id));
+      const candidates = this.state.tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled' && !inDay.has(t.id));
+      const scored = candidates.map((t) => {
+        let score = (PRIORITY_WEIGHT[t.priority] || 0) * 10;
+        let reason = `${PRIORITY_LABEL[t.priority] || 'Medium'} priority`;
+        if (t.dueDate) {
+          const d = diffDays(TODAY, t.dueDate);
+          if (d < 0) { score += 100; reason = `Overdue by ${-d} day${-d > 1 ? 's' : ''}`; }
+          else if (d === 0) { score += 60; reason = 'Due today'; }
+          else if (d <= 2) { score += 30; reason = `Due ${formatDate(t.dueDate)}`; }
+        } else if (t.estimatedMinutes && t.estimatedMinutes <= 30) { score += 15; reason = `Quick win (~${formatEstimate(t.estimatedMinutes)})`; }
+        return { taskId: t.id, score, reason };
+      }).sort((a, b) => b.score - a.score).slice(0, 4);
+      this.setState({ planning: false, plan: { summary: scored.length ? `${scored.length} tasks picked from deadlines and priority.` : 'Nothing urgent left to add — nice work.', suggestions: scored } });
+    }, 550);
+  };
+  dismissPlan = () => this.setState({ plan: null });
+  addSuggestion = (taskId) => () => this.toggleMyDay(taskId)();
+  addAllSuggestions = () => {
+    (this.state.plan?.suggestions || []).forEach((s) => this.toggleMyDay(s.taskId)());
+    this.setState({ plan: null });
+  };
+
+  prioritise = () => {
+    this.setState({ rankingBusy: true, ranking: null });
+    setTimeout(() => {
+      const open = this.state.tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
+      const scored = open.map((t) => {
+        const blocked = (t.dependencies || []).some((id) => { const d = this.state.tasks.find((x) => x.id === id); return d && d.status !== 'done'; });
+        let score = (PRIORITY_WEIGHT[t.priority] || 0) * 10; let reason = `${PRIORITY_LABEL[t.priority] || 'Medium'} priority`;
+        if (blocked) { score -= 500; reason = 'Blocked by another task'; }
+        else if (t.dueDate) {
+          const d = diffDays(TODAY, t.dueDate);
+          if (d < 0) { score += 100; reason = `Overdue by ${-d} day${-d > 1 ? 's' : ''}`; }
+          else if (d <= 2) { score += 40; reason = `Due ${formatDate(t.dueDate)}`; }
+        }
+        return { taskId: t.id, score, reason };
+      }).sort((a, b) => b.score - a.score);
+      this.setState({ rankingBusy: false, ranking: { summary: 'Ranked by deadline, priority and blockers.', order: scored } });
+    }, 550);
+  };
+  clearRanking = () => this.setState({ ranking: null });
+
+  renderVals() {
+    const s = this.state;
+    const activeNotepad = s.notepads.find((n) => n.id === s.activeNotepadId) || s.notepads[0];
+    const isMyDay = s.view.name === 'myday', isUpcoming = s.view.name === 'upcoming', isAll = s.view.name === 'all',
+      isTimeline = s.view.name === 'timeline', isProjects = s.view.name === 'projects', isProjectDetail = s.view.name === 'project',
+      isSettings = s.view.name === 'settings';
+
+    const navBtn = (active) => `display:flex;align-items:center;gap:11px;width:100%;padding:11px 13px;border:none;border-radius:11px;text-align:left;cursor:pointer;font-size:14px;letter-spacing:-0.005em;font-weight:${active ? 800 : 600};background:${active ? C.accent : 'transparent'};color:${active ? '#fff' : C.sidebarText};box-shadow:${active ? '0 6px 16px -6px oklch(62% 0.21 279 / 0.55)' : 'none'};`;
+    const sidebarProjects = s.projects.filter((p) => p.status === 'active' || p.status === 'on_hold').map((p) => {
+      const openCount = s.tasks.filter((t) => t.projectId === p.id && t.status !== 'done' && t.status !== 'cancelled').length;
+      const active = isProjectDetail && s.view.projectId === p.id;
+      return {
+        id: p.id, name: p.name, hasCount: openCount > 0, openCount,
+        rowStyle: navBtn(active),
+        dotStyle: `width:9px;height:9px;border-radius:50%;flex-shrink:0;background:${p.color};box-shadow:0 0 0 3px color-mix(in srgb, ${p.color} 22%, transparent);`,
+        countStyle: `background:oklch(30% 0.03 272);border-radius:9px;padding:1px 7px;font-size:11px;color:${C.sidebarTextMuted};`,
+        openHandler: () => this.openProject(p.id),
+      };
+    });
+
+    const badgeNeutralStyle = `font-size:11px;padding:2px 8px;border-radius:8px;background:oklch(95% 0.006 265);color:${C.textSecondary};white-space:nowrap;font-weight:600;`;
+    const tagBadgeStyle = `font-size:11px;padding:2px 8px;border-radius:8px;background:oklch(94% 0.02 265);color:${C.accentDark};white-space:nowrap;font-weight:600;`;
+    const blockedBadgeStyle = `font-size:11px;padding:2px 8px;border-radius:8px;background:${C.aiLight};color:${C.ai};white-space:nowrap;font-weight:700;`;
+    const countPillStyle = `background:oklch(93% 0.006 265);border-radius:9px;padding:1px 8px;font-size:11px;color:${C.textSecondary};font-weight:700;`;
+    const linkBtnStyle = `border:none;background:transparent;color:${C.textSecondary};font-size:12px;font-weight:600;cursor:pointer;padding:2px 4px;`;
+    const bannerWarnStyle = `padding:11px 15px;border-radius:10px;margin-bottom:10px;font-size:13px;background:${C.warningLight};color:${C.warningDark};font-weight:600;`;
+    const bannerInfoStyle = `padding:11px 15px;border-radius:10px;margin-bottom:10px;font-size:13px;background:${C.accentLight};color:${C.accentDark};`;
+    const filterInputStyle = `padding:8px 12px;border:1px solid ${C.border};border-radius:9px;background:#fff;font-size:13.5px;font-family:inherit;color:${C.textPrimary};`;
+    const fieldGridStyle = `display:grid;grid-template-columns:112px 1fr;gap:11px 12px;align-items:center;`;
+    const fieldLabelStyle = `color:${C.textSecondary};font-size:13px;font-weight:600;`;
+    const fieldInputStyle = `padding:7px 10px;border:1px solid ${C.border};border-radius:8px;background:#fff;width:100%;font-family:inherit;font-size:13.5px;color:${C.textPrimary};`;
+    const sectionLabelStyle = `display:block;color:${C.textSecondary};font-size:13px;font-weight:700;margin:18px 0 7px;`;
+    const textareaStyle = `width:100%;border:1px solid ${C.border};border-radius:8px;padding:9px 11px;resize:vertical;font-family:inherit;font-size:13.5px;color:${C.textPrimary};`;
+    const dangerBtnStyle = `border:1px solid ${C.dangerLight};color:${C.danger};background:#fff;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;`;
+    const smallSelectStyle = `padding:5px 8px;border:1px solid ${C.border};border-radius:7px;font-size:12.5px;font-family:inherit;color:${C.textPrimary};background:#fff;`;
+    const planButtonStyle = `display:flex;align-items:center;gap:7px;padding:9px 16px;border:none;border-radius:10px;background:${C.accent};color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;flex-shrink:0;`;
+    const bigTitleInputStyle = `width:100%;font-size:19px;font-weight:800;border:none;outline:none;background:transparent;font-family:inherit;color:${C.textPrimary};`;
+    const detailTitleStyle = `width:100%;font-size:18px;font-weight:700;border:none;outline:none;border-bottom:1px solid transparent;padding:4px 0;margin-bottom:14px;background:transparent;font-family:inherit;color:${C.textPrimary};`;
+
+    function priorityBadge(p) { return { showPriority: !!PRIORITY_LABEL[p], priorityLabel: PRIORITY_LABEL[p], priorityBadgeStyle: `font-size:11px;padding:2px 8px;border-radius:8px;background:${PRIORITY_BG[p] || 'oklch(95% 0.006 265)'};color:${PRIORITY_COLOR[p] || C.textSecondary};white-space:nowrap;font-weight:700;` }; }
+
+    const enrich = (t, opts = {}) => {
+      const done = t.status === 'done';
+      const overdue = !done && t.dueDate && t.dueDate < TODAY;
+      const blocked = (t.dependencies || []).some((id) => { const d = s.tasks.find((x) => x.id === id); return d && d.status !== 'done'; });
+      const project = s.projects.find((p) => p.id === t.projectId);
+      const inMyDay = t.myDayDate === TODAY;
+      const subDone = (t.subtasks || []).filter((x) => x.done).length;
+      const pb = priorityBadge(t.priority);
+      const priorityBorder = { urgent: C.danger, high: C.warning, medium: 'transparent', low: 'transparent' }[t.priority] || 'transparent';
+      return {
+        isBucket: false, isTask: true, key: `t${t.id}`,
+        rowStyle: `display:flex;align-items:flex-start;gap:11px;background:#fff;border:1px solid ${C.border};border-left:4px solid ${done ? C.border : priorityBorder};border-radius:13px;padding:13px 15px;cursor:pointer;opacity:${done ? 0.5 : 1};box-shadow:0 1px 2px oklch(20% 0.02 265 / 0.04);transition:box-shadow 0.15s,transform 0.15s;`,
+        checkStyle: `width:21px;height:21px;border-radius:50%;flex-shrink:0;margin-top:1px;border:1.5px solid ${done ? C.success : 'oklch(72% 0.01 265)'};background:${done ? C.success : '#fff'};color:#fff;font-size:12px;line-height:1;cursor:pointer;padding:0;`,
+        checkGlyph: done ? '✓' : '',
+        titleStyle: `font-weight:650;font-size:14.5px;color:${C.textPrimary};${done ? 'text-decoration:line-through;' : ''}`,
+        title: t.title, blocked,
+        showProjectBadge: !!(opts.showProject !== false && project),
+        projectName: project ? project.name : '',
+        projectBadgeStyle: project ? `font-size:11px;padding:2px 8px;border-radius:8px;background:color-mix(in srgb, ${project.color} 16%, white);color:${C.textPrimary};white-space:nowrap;font-weight:600;` : '',
+        showDue: !!t.dueDate, dueLabel: formatDate(t.dueDate),
+        dueBadgeStyle: overdue ? `font-size:11px;padding:2px 8px;border-radius:8px;background:${C.dangerLight};color:${C.danger};white-space:nowrap;font-weight:700;` : badgeNeutralStyle,
+        showDo: !!(t.doDate && !done), doLabel: formatDate(t.doDate),
+        showEstimate: !!t.estimatedMinutes, estimateLabel: formatEstimate(t.estimatedMinutes, s.workdayMinutes),
+        ...pb,
+        showSubtasks: (t.subtasks || []).length > 0, subtaskLabel: `${subDone}/${(t.subtasks || []).length}`,
+        recurring: !!t.recurrence,
+        tags: t.tags || [],
+        showMyDayToggle: !done,
+        myDayToggleStyle: `border:none;background:transparent;color:${inMyDay ? C.warning : 'oklch(80% 0.01 265)'};flex-shrink:0;padding:2px;cursor:pointer;`,
+        toggleMyDayHandler: this.toggleMyDay(t.id),
+        toggleDoneHandler: this.toggleTaskDone(t.id),
+        selectHandler: () => this.selectTask(t.id),
+        showReason: !!opts.reason, reason: opts.reason || '',
+      };
+    };
+
+    // ---- My Day ----
+    const myDayTasks = s.tasks.filter((t) => t.myDayDate === TODAY || (t.doDate && t.doDate <= TODAY && t.status !== 'done'));
+    const overdueCount = s.tasks.filter((t) => t.status !== 'done' && t.dueDate && t.dueDate < TODAY).length;
+    const totalEstimate = myDayTasks.filter((t) => t.status !== 'done').reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
+    const overloaded = totalEstimate > s.workdayMinutes;
+
+    // ---- Upcoming buckets ----
+    const BUCKETS = [['overdue', 'Overdue'], ['today', 'Do today'], ['tomorrow', 'Do tomorrow'], ['this_week', 'This week'], ['next_week', 'Next week'], ['later', 'Later'], ['unscheduled', 'No date']];
+    function bucketOf(t) {
+      if (t.status === 'done') return null;
+      if (!t.doDate) return 'unscheduled';
+      const d = diffDays(TODAY, t.doDate);
+      if (d < 0) return 'overdue'; if (d === 0) return 'today'; if (d === 1) return 'tomorrow';
+      if (d > 1 && d < 7) return 'this_week'; if (d >= 7 && d < 14) return 'next_week'; return 'later';
+    }
+
+    // ---- All tasks filtered ----
+    let allFiltered = s.tasks.filter((t) => s.showDone || t.status !== 'done');
+    if (s.search) { const q = s.search.toLowerCase(); allFiltered = allFiltered.filter((t) => t.title.toLowerCase().includes(q)); }
+    if (s.tagFilter) allFiltered = allFiltered.filter((t) => (t.tags || []).includes(s.tagFilter));
+    const allTags = [...new Set(s.tasks.flatMap((t) => t.tags || []))];
+
+    let listItems = [];
+    let listEmptyText = 'Nothing here.';
+    let quickAddPlaceholder = 'Add a task — press Enter';
+    const showTaskList = isMyDay || isUpcoming || isAll || isProjectDetail;
+
+    if (isMyDay) {
+      listItems = myDayTasks.map((t) => enrich(t));
+      listEmptyText = 'Nothing in My Day yet. Add a task below, or plan your day.';
+      quickAddPlaceholder = 'Add a task to My Day';
+    } else if (isUpcoming) {
+      for (const [key, label] of BUCKETS) {
+        const bucketTasks = s.tasks.filter((t) => bucketOf(t) === key);
+        if (!bucketTasks.length) continue;
+        listItems.push({ isBucket: true, isTask: false, key: `b${key}`, bucketLabel: label, bucketCount: bucketTasks.length, bucketStyle: `margin:16px 0 8px;font-size:13.5px;font-weight:700;display:flex;gap:8px;align-items:center;color:${key === 'overdue' ? C.danger : C.textPrimary};` });
+        listItems.push(...bucketTasks.map((t) => enrich(t)));
+      }
+      listEmptyText = 'No open tasks. Add one above.';
+    } else if (isAll) {
+      let shown = allFiltered;
+      let reasonMap = {};
+      if (s.ranking) {
+        const rankById = {}; s.ranking.order.forEach((r, i) => { rankById[r.taskId] = i; reasonMap[r.taskId] = r.reason; });
+        shown = [...shown].sort((a, b) => (rankById[a.id] ?? 1e9) - (rankById[b.id] ?? 1e9));
+      }
+      listItems = shown.map((t) => enrich(t, { reason: reasonMap[t.id] }));
+      listEmptyText = 'No tasks match.';
+    } else if (isProjectDetail) {
+      const p = this.currentProject();
+      if (p) {
+        const projTasks = s.tasks.filter((t) => t.projectId === p.id && (s.showDone || t.status !== 'done'));
+        listItems = projTasks.map((t) => enrich(t, { showProject: false }));
+      }
+      listEmptyText = 'No tasks in this project yet.';
+      quickAddPlaceholder = this.currentProject() ? `Add a task to ${this.currentProject().name}` : 'Add a task';
+    }
+
+    // ---- Timeline ----
+    const timelineFilter = s.timelineProjectFilter ? Number(s.timelineProjectFilter) : null;
+    const dated = s.tasks.filter((t) => t.dueDate && (!timelineFilter || t.projectId === timelineFilter));
+    let timelineGroups = [];
+    if (dated.length) {
+      const dates = dated.flatMap((t) => [t.doDate || t.dueDate, t.dueDate]).concat([TODAY]);
+      const min = dates.reduce((a, b) => (a < b ? a : b));
+      const max = dates.reduce((a, b) => (a > b ? a : b));
+      const rangeStart = addDays(min, -2); const totalSpan = Math.max(diffDays(rangeStart, max) + 4, 5);
+      const groupsMap = new Map();
+      for (const t of dated) {
+        const key = t.projectId || 0;
+        if (!groupsMap.has(key)) { const p = s.projects.find((x) => x.id === t.projectId); groupsMap.set(key, { name: p ? p.name : 'No project', color: p ? p.color : 'oklch(70% 0.01 265)', tasks: [] }); }
+        groupsMap.get(key).tasks.push(t);
+      }
+      timelineGroups = [...groupsMap.values()].map((g) => ({
+        name: g.name, dotStyle: `width:9px;height:9px;border-radius:50%;background:${g.color};`,
+        tasks: g.tasks.map((t) => {
+          const start = t.doDate || t.dueDate;
+          const left = (diffDays(rangeStart, start) / totalSpan) * 100;
+          const width = Math.max((diffDays(start, t.dueDate) + 1) / totalSpan * 100, 2.5);
+          const done = t.status === 'done';
+          return {
+            title: t.title.length > 32 ? t.title.slice(0, 31) + '…' : t.title,
+            labelStyle: `font-size:13px;font-weight:600;color:${C.textPrimary};${done ? 'text-decoration:line-through;color:' + C.textMuted + ';' : ''}`,
+            barStyle: `position:absolute;top:3px;bottom:3px;left:${left}%;width:${width}%;border-radius:6px;background:${g.color};opacity:${done ? 0.35 : 0.9};`,
+            selectHandler: () => this.selectTask(t.id),
+          };
+        }),
+      }));
+    }
+
+    // ---- Projects grid ----
+    const projectCards = s.projects.map((p) => {
+      const projTasks = s.tasks.filter((t) => t.projectId === p.id);
+      const done = projTasks.filter((t) => t.status === 'done').length;
+      const total = projTasks.length;
+      return {
+        id: p.id, name: p.name, description: p.description || 'No description',
+        cardStyle: `background:#fff;border:1px solid ${C.border};border-radius:13px;padding:15px 17px;display:flex;flex-direction:column;gap:9px;opacity:${p.status === 'archived' || p.status === 'completed' ? 0.6 : 1};`,
+        dotStyle: `width:13px;height:13px;border-radius:50%;flex-shrink:0;background:${p.color};`,
+        progressStyle: `height:100%;background:${C.success};width:${total ? (done / total) * 100 : 0}%;`,
+        doneTotalText: `${done}/${total} done`, targetText: p.targetDate ? `target ${formatDate(p.targetDate)}` : '',
+        status: p.status, statusHandler: (e) => this.patchProject(p.id, { status: e.target.value }), openHandler: () => this.openProject(p.id),
+      };
+    });
+
+    // ---- Selected task detail ----
+    const selectedTask = this.selectedTask() || {};
+    const candidates = s.tasks.filter((c) => c.id !== selectedTask.id && !(selectedTask.dependencies || []).includes(c.id) && c.status !== 'done' && c.status !== 'cancelled');
+    const rec = selectedTask.recurrence;
+    const currentProject = this.currentProject() || {};
+
+    return {
+      isMyDay, isUpcoming, isAll, isTimeline, isProjects, isProjectDetail, isSettings, showTaskList,
+      navMyDayStyle: navBtn(isMyDay), navUpcomingStyle: navBtn(isUpcoming), navAllStyle: navBtn(isAll), navTimelineStyle: navBtn(isTimeline), navSettingsStyle: navBtn(isSettings),
+      sidebarProjects,
+      aiBadgeStyle: `font-size:11.5px;color:${s.aiAvailable ? C.success : C.textMuted};padding:6px 10px;font-weight:600;`,
+      aiBadgeText: `AI ${s.aiAvailable ? 'enabled' : 'off'}`,
+      goMyDay: this.goMyDay, goUpcoming: this.goUpcoming, goAll: this.goAll, goTimeline: this.goTimeline, goProjects: this.goProjects, goSettings: this.goSettings, stopPropagation: this.stopPropagation,
+
+      myDaySubtitle: new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
+      planButtonStyle, planButtonLabel: s.planning ? 'Thinking…' : (s.aiAvailable ? 'Plan my day (AI)' : 'Suggest tasks'), planDay: this.planDay,
+      warnOverdue: overdueCount > 0, warnOverdueText: `${overdueCount} overdue task${overdueCount > 1 ? 's' : ''} ${overdueCount === 1 ? 'needs' : 'need'} attention.`,
+      warnOverload: overloaded, warnOverloadText: `Planned work (${formatEstimate(totalEstimate, s.workdayMinutes)}) exceeds your ${formatEstimate(s.workdayMinutes)} workday.`,
+      showWorkloadInfo: !overloaded && totalEstimate > 0, workloadInfoText: `${formatEstimate(totalEstimate, s.workdayMinutes)} of estimated work planned today (${formatEstimate(s.workdayMinutes)} workday).`,
+      bannerWarnStyle, bannerInfoStyle,
+      hasPlan: !!s.plan, aiPanelStyle: `background:${C.aiLight};border:1px solid oklch(90% 0.03 300);border-radius:12px;padding:13px 17px;margin-bottom:14px;`,
+      planHeading: s.plan && s.plan.suggestions.some(x => true) ? 'Suggestions' : 'Suggestions',
+      dismissPlan: this.dismissPlan, planSummary: s.plan ? s.plan.summary : '',
+      planItems: s.plan ? s.plan.suggestions.filter((sg) => s.tasks.find((t) => t.id === sg.taskId)?.myDayDate !== TODAY).map((sg) => ({ reason: sg.reason, addHandler: this.addSuggestion(sg.taskId) })) : [],
+      showAddAll: s.plan && s.plan.suggestions.length > 1,
+      suggestionAddStyle: `width:24px;height:24px;border-radius:50%;border:1px solid oklch(80% 0.05 300);background:#fff;color:${C.ai};flex-shrink:0;cursor:pointer;font-size:14px;line-height:1;`,
+      smallAiBtnStyle: `padding:6px 13px;border:1px solid oklch(80% 0.05 300);border-radius:8px;background:#fff;color:${C.ai};margin-top:5px;font-weight:700;font-size:12.5px;cursor:pointer;`,
+      linkBtnStyle,
+
+      search: s.search, setSearch: this.setSearch, tagFilter: s.tagFilter, setTagFilter: this.setTagFilter, allTags,
+      showDone: s.showDone, setShowDone: this.setShowDone, filterInputStyle,
+      hasRanking: !!s.ranking, clearRanking: this.clearRanking, rankingSummary: s.ranking ? s.ranking.summary : '',
+      prioritise: this.prioritise, prioritiseButtonLabel: s.rankingBusy ? 'Thinking…' : (s.aiAvailable ? 'Prioritise (AI)' : 'Prioritise'),
+
+      quickAddValue: s.quickAddValue, setQuickAddValue: this.setQuickAddValue, quickAddSubmit: this.quickAddSubmit, quickAddPlaceholder,
+      listItems, listEmpty: showTaskList && listItems.length === 0, listEmptyText, countPillStyle, badgeNeutralStyle, tagBadgeStyle, blockedBadgeStyle,
+
+      isTimeline, timelineEmpty: isTimeline && timelineGroups.length === 0, timelineGroups, timelineProjectFilter: s.timelineProjectFilter, setTimelineFilter: this.setTimelineFilter,
+      projects: s.projects,
+
+      isProjects, projectsEmpty: s.projects.length === 0, newProjectName: s.newProjectName, setNewProjectName: this.setNewProjectName, createProjectSubmit: this.createProjectSubmit, projectCards, smallSelectStyle,
+
+      currentProject, projectTitleDraft: s.projectTitleDraft, setProjectTitleDraft: this.setProjectTitleDraft, commitProjectTitle: this.commitProjectTitle,
+      projectDescDraft: s.projectDescDraft, setProjectDescDraft: this.setProjectDescDraft, commitProjectDesc: this.commitProjectDesc,
+      setProjectStatus: this.setProjectStatus, setProjectStart: this.setProjectStart, setProjectTarget: this.setProjectTarget, deleteProject: this.deleteProject,
+      projectDotBigStyle: `width:15px;height:15px;border-radius:50%;flex-shrink:0;background:${currentProject.color || '#ccc'};`,
+      projectProgressText: isProjectDetail ? `${s.tasks.filter(t => t.projectId === currentProject.id && t.status === 'done').length}/${s.tasks.filter(t => t.projectId === currentProject.id).length} tasks done` : '',
+      bigTitleInputStyle, fieldGridStyle, fieldLabelStyle, fieldInputStyle, dangerBtnStyle,
+
+      isSettings, workdayHoursValue: s.workdayMinutes / 60, setWorkdayHours: this.setWorkdayHours, workdayFormatted: formatEstimate(s.workdayMinutes),
+      aiStatusTextStyle: `font-size:13px;color:${s.aiAvailable ? C.success : C.textSecondary};`,
+      aiStatusText: s.aiAvailable ? 'Enabled — planning uses AI suggestions.' : 'Disabled — using built-in rules (deadlines, priority, workload) instead.',
+
+      hasSelectedTask: !!s.selectedTaskId, selectedTask, closeDetail: this.closeDetail,
+      myDayBigToggleStyle: `display:flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid ${selectedTask.myDayDate === TODAY ? 'oklch(80% 0.08 75)' : C.border};border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;background:${selectedTask.myDayDate === TODAY ? C.warningLight : '#fff'};color:${selectedTask.myDayDate === TODAY ? C.warningDark : C.textSecondary};`,
+      myDayBigToggleLabel: selectedTask.myDayDate === TODAY ? 'In My Day' : 'Add to My Day', toggleSelectedMyDay: this.toggleSelectedMyDay,
+      detailTitleStyle, titleDraft: s.titleDraft, setTitleDraft: this.setTitleDraft, commitTitle: this.commitTitle,
+      selectedProjectIdValue: selectedTask.projectId || '', setTaskProject: this.setTaskProject,
+      setStatus: this.setStatus, setPriority: this.setPriority,
+      dueDateValue: selectedTask.dueDate || '', setDueDate: this.setDueDate,
+      doDateAuto: !selectedTask.doDateManual, doDateValue: selectedTask.doDate || '', setDoDate: this.setDoDate, doDateManualFlag: !!selectedTask.doDateManual, resetDoDate: this.resetDoDate,
+      estimateDraftText: s.estimateDraftText, setEstimateDraft: this.setEstimateDraft, commitEstimate: this.commitEstimate,
+      recurrenceValue: rec ? `${rec.freq}:${rec.interval}` : '', setRecurrence: this.setRecurrence,
+      tagsDraftText: s.tagsDraftText, setTagsDraft: this.setTagsDraft, commitTags: this.commitTags,
+      sectionLabelStyle, textareaStyle, notesDraft: s.notesDraft, setNotesDraft: this.setNotesDraft, commitNotes: this.commitNotes,
+      selectedSubtasks: (selectedTask.subtasks || []).map((sub) => ({ done: sub.done, title: sub.title, style: sub.done ? `text-decoration:line-through;color:${C.textMuted};flex:1;` : 'flex:1;', toggleHandler: this.toggleSubtask(selectedTask.id, sub.id), removeHandler: this.removeSubtask(selectedTask.id, sub.id) })),
+      newSubtaskText: s.newSubtaskText, setNewSubtaskText: this.setNewSubtaskText, addSubtaskSubmit: this.addSubtaskSubmit,
+      selectedDependencies: (selectedTask.dependencies || []).map((id) => { const d = s.tasks.find((x) => x.id === id) || {}; return { title: d.title || '', style: d.status === 'done' ? `text-decoration:line-through;color:${C.textMuted};` : '', removeHandler: this.removeDependency(selectedTask.id, id) }; }),
+      dependencyCandidates: candidates.map((c) => { const p = s.projects.find((x) => x.id === c.projectId); return { id: c.id, label: p ? `[${p.name}] ${c.title}` : c.title }; }),
+      addDependency: this.addDependency, deleteSelectedTask: this.deleteSelectedTask,
+      notepads: s.notepads, activeNotepad, activeNotepadId: s.activeNotepadId,
+      selectNotepad: this.selectNotepad, addNotepad: this.addNotepad, setNotepadLink: this.setNotepadLink,
+      convertNotepadToTask: this.convertNotepadToTask, startNotepadResize: this.startNotepadResize,
+      notepadText: activeNotepad ? activeNotepad.text : '', setNotepadText: this.setNotepadText, notepadOpen: s.notepadOpen, toggleNotepad: this.toggleNotepad, isMobile: s.isMobile,
+      notepadToggleGlyph: s.notepadOpen ? 'Collapse ▾' : 'Expand ▴',
+      notepadLinkValue: activeNotepad && activeNotepad.linkType ? `${activeNotepad.linkType}:${activeNotepad.linkId}` : '',
+      notepadLinkOptions: [{ value: '', label: 'Link to task or project…' },
+        ...s.projects.map((p) => ({ value: `project:${p.id}`, label: `Project · ${p.name}` })),
+        ...s.tasks.slice(0, 40).map((t) => ({ value: `task:${t.id}`, label: `Task · ${t.title}` }))],
+      notepadWrapStyle: `position:fixed;left:${s.isMobile ? '0' : '262px'};right:0;bottom:0;z-index:50;background:linear-gradient(180deg, oklch(21% 0.035 272), ${C.sidebarBg});border-top:1px solid oklch(32% 0.02 272);box-shadow:0 -10px 28px oklch(15% 0.02 265 / 0.3);height:${s.notepadOpen ? s.notepadHeight + 'px' : '48px'};display:flex;flex-direction:column;transition:${s.notepadOpen ? 'none' : 'height 0.18s ease'};`,
+      notepadResizeHandleStyle: `height:6px;flex-shrink:0;cursor:ns-resize;display:${s.notepadOpen ? 'flex' : 'none'};align-items:center;justify-content:center;`,
+      notepadHeaderStyle: `display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 18px;flex-shrink:0;border-bottom:${s.notepadOpen ? '1px solid oklch(30% 0.02 272)' : 'none'};`,
+      notepadSelectStyle: `background:oklch(27% 0.03 272);color:${C.sidebarText};border:1px solid oklch(35% 0.02 272);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;`,
+      notepadLinkSelectStyle: `background:oklch(27% 0.03 272);color:oklch(80% 0.01 265);border:1px solid oklch(35% 0.02 272);border-radius:8px;padding:6px 10px;font-size:12px;font-family:inherit;cursor:pointer;max-width:220px;`,
+      notepadBtnStyle: `background:oklch(27% 0.03 272);color:${C.sidebarText};border:1px solid oklch(35% 0.02 272);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;`,
+      notepadConvertBtnStyle: `background:${C.accent};color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;box-shadow:0 4px 12px -4px oklch(62% 0.21 279 / 0.6);`,
+      notepadCollapseBtnStyle: `background:none;border:none;color:${C.sidebarTextMuted};font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;margin-left:auto;`,
+      notepadBodyStyle: `flex:1;min-height:0;padding:${s.notepadOpen ? '14px 18px 18px' : '0'};display:${s.notepadOpen ? 'block' : 'none'};`,
+      notepadTextareaStyle: `width:100%;height:100%;resize:none;border:none;outline:none;background:oklch(88% 0.05 95);color:oklch(28% 0.03 80);border-radius:4px;padding:16px 18px;font-family:inherit;font-size:14px;line-height:1.6;box-sizing:border-box;box-shadow:0 3px 10px oklch(20% 0.02 265 / 0.25), inset 0 0 0 1px oklch(80% 0.06 95);transform:rotate(-0.3deg);`,
+      mainShellStyle: `display:flex;height:100vh;background:${C.bg};color:${C.textPrimary};overflow:hidden;flex-direction:${s.isMobile ? 'column' : 'row'};`,
+      mainContentStyle: `flex:1;overflow-y:auto;padding:36px 44px ${(s.notepadOpen ? s.notepadHeight : 48) + 40}px;min-width:0;`,
+    };
+  }
+}
+
+</script>
+</body>
+</html>
