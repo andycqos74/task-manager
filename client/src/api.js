@@ -80,6 +80,34 @@ export function formatDate(iso) {
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: y === today.getFullYear() ? undefined : 'numeric' });
 }
 
+const PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
+const NO_DATE = '9999-99-99'; // sorts after any real ISO date
+
+export const TASK_SORTS = [
+  ['due_date', 'Due date'],
+  ['do_date', 'Do date'],
+  ['priority', 'Priority'],
+  ['created', 'Recently added'],
+  ['title', 'Title (A–Z)'],
+];
+
+export function sortTasks(tasks, sort) {
+  const arr = [...tasks];
+  switch (sort) {
+    case 'priority':
+      return arr.sort((a, b) => (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9));
+    case 'do_date':
+      return arr.sort((a, b) => (a.do_date || NO_DATE).localeCompare(b.do_date || NO_DATE));
+    case 'created':
+      return arr.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    case 'title':
+      return arr.sort((a, b) => a.title.localeCompare(b.title));
+    case 'due_date':
+    default:
+      return arr.sort((a, b) => (a.due_date || NO_DATE).localeCompare(b.due_date || NO_DATE));
+  }
+}
+
 export function todayISO() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
