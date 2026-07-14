@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, parseEstimate, formatEstimate, todayISO } from '../api.js';
+import { SunIcon } from '../icons.jsx';
 
 // Full task editor, shown as a right-hand panel. Every change saves
 // immediately (PATCH), so quick-captured tasks can be enriched over time.
@@ -121,7 +122,7 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
           className={`myday-toggle big ${inMyDay ? 'on' : ''}`}
           onClick={async () => { await api.post(`/tasks/${task.id}/my-day`, { on: !inMyDay }); load(); onChanged?.(); }}
         >
-          ☀ {inMyDay ? 'In My Day' : 'Add to My Day'}
+          <SunIcon width={15} height={15} /> {inMyDay ? 'In My Day' : 'Add to My Day'}
         </button>
         <button className="link" onClick={onClose}>Close ✕</button>
       </div>

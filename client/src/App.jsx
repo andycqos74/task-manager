@@ -9,6 +9,14 @@ import Gantt from './views/Gantt.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
+import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon } from './icons.jsx';
+
+const NAV = [
+  { key: 'myday', label: 'My Day', Icon: SunIcon },
+  { key: 'schedule', label: 'Upcoming', Icon: CalendarIcon },
+  { key: 'all', label: 'All Tasks', Icon: ListIcon },
+  { key: 'gantt', label: 'Timeline', Icon: BarChartIcon },
+];
 
 export default function App() {
   const [view, setView] = useState({ name: 'myday' });
@@ -46,78 +54,86 @@ export default function App() {
     taskId: selectedTaskId,
   };
 
-  const navItem = (key, label, target) => (
-    <button
-      key={key}
-      className={`nav-item ${view.name === key && (view.projectId ?? null) === (target?.projectId ?? null) ? 'active' : ''}`}
-      onClick={() => setView(target || { name: key })}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <div className="app-shell">
-    <div className="app">
-      <aside className="sidebar">
-        <h1 className="logo">Tasks</h1>
-        <nav>
-          {navItem('myday', '☀️ My Day')}
-          {navItem('schedule', '📅 Upcoming')}
-          {navItem('all', '📋 All Tasks')}
-          {navItem('gantt', '📊 Timeline')}
-        </nav>
-        <div className="sidebar-section">
-          <div className="sidebar-heading">
-            <span>Projects</span>
-            <button className="link" onClick={() => setView({ name: 'projects' })}>manage</button>
+      <div className="app">
+        <aside className="sidebar">
+          <div className="sidebar-brand">
+            <div className="sidebar-logo">T</div>
+            <span className="sidebar-wordmark">Tasks</span>
           </div>
-          <nav>
-            {projects
-              .filter((p) => p.status === 'active' || p.status === 'on_hold')
-              .map((p) => (
-                <button
-                  key={p.id}
-                  className={`nav-item ${view.name === 'project' && view.projectId === p.id ? 'active' : ''}`}
-                  onClick={() => setView({ name: 'project', projectId: p.id })}
-                >
-                  <span className="dot" style={{ background: p.color }} />
-                  <span className="nav-label">{p.name}</span>
-                  {p.open_tasks > 0 && <span className="count">{p.open_tasks}</span>}
-                </button>
-              ))}
-          </nav>
-        </div>
-        <div className="sidebar-footer">
-          <button className="nav-item" onClick={() => setView({ name: 'settings' })}>⚙️ Settings</button>
-          <div className={`ai-badge ${settings.ai_available ? 'on' : ''}`}>
-            AI {settings.ai_available ? 'enabled' : 'off'}
-          </div>
-        </div>
-      </aside>
 
-      <main className="main">
-        {error && <div className="toast error">{error}</div>}
-        {view.name === 'myday' && <MyDay {...viewProps} />}
-        {view.name === 'schedule' && <Schedule {...viewProps} />}
-        {view.name === 'all' && <AllTasks {...viewProps} />}
-        {view.name === 'gantt' && <Gantt {...viewProps} />}
-        {view.name === 'projects' && <Projects {...viewProps} />}
-        {view.name === 'project' && <ProjectDetail {...viewProps} projectId={view.projectId} key={view.projectId} />}
-        {view.name === 'settings' && <Settings {...viewProps} />}
-      </main>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {NAV.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                className={`nav-item ${view.name === key ? 'active' : ''}`}
+                onClick={() => setView({ name: key })}
+              >
+                <Icon width={18} height={18} />
+                <span className="nav-label">{label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="sidebar-section">
+            <div className="sidebar-heading">
+              <span>Projects</span>
+              <button className="link" onClick={() => setView({ name: 'projects' })}>Manage</button>
+            </div>
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {projects
+                .filter((p) => p.status === 'active' || p.status === 'on_hold')
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    className={`nav-item ${view.name === 'project' && view.projectId === p.id ? 'active' : ''}`}
+                    onClick={() => setView({ name: 'project', projectId: p.id })}
+                  >
+                    <span className="dot" style={{ background: p.color, boxShadow: `0 0 0 3px color-mix(in srgb, ${p.color} 22%, transparent)` }} />
+                    <span className="nav-label">{p.name}</span>
+                    {p.open_tasks > 0 && <span className="count">{p.open_tasks}</span>}
+                  </button>
+                ))}
+            </nav>
+          </div>
+
+          <div className="sidebar-footer">
+            <button className={`nav-item ${view.name === 'settings' ? 'active' : ''}`} onClick={() => setView({ name: 'settings' })}>
+              <GearIcon width={18} height={18} />
+              <span className="nav-label">Settings</span>
+            </button>
+            <div className={`ai-badge ${settings.ai_available ? 'on' : ''}`}>
+              AI {settings.ai_available ? 'enabled' : 'off'}
+            </div>
+          </div>
+        </aside>
+
+        <main className="main">
+          {error && <div className="toast error">{error}</div>}
+          {view.name === 'myday' && <MyDay {...viewProps} />}
+          {view.name === 'schedule' && <Schedule {...viewProps} />}
+          {view.name === 'all' && <AllTasks {...viewProps} />}
+          {view.name === 'gantt' && <Gantt {...viewProps} />}
+          {view.name === 'projects' && <Projects {...viewProps} />}
+          {view.name === 'project' && <ProjectDetail {...viewProps} projectId={view.projectId} key={view.projectId} />}
+          {view.name === 'settings' && <Settings {...viewProps} />}
+        </main>
+      </div>
 
       {selectedTaskId && (
-        <TaskDetail
-          taskId={selectedTaskId}
-          projects={projects}
-          settings={settings}
-          onClose={() => setSelectedTaskId(null)}
-          onChanged={refresh}
-          onError={reportError}
-        />
+        <>
+          <div className="detail-backdrop" onClick={() => setSelectedTaskId(null)} />
+          <TaskDetail
+            taskId={selectedTaskId}
+            projects={projects}
+            settings={settings}
+            onClose={() => setSelectedTaskId(null)}
+            onChanged={refresh}
+            onError={reportError}
+          />
+        </>
       )}
-    </div>
 
       <Notepad
         projects={projects}

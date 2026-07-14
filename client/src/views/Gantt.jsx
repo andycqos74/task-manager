@@ -37,7 +37,7 @@ export default function Gantt({ refreshKey, projects, onSelectTask, onError }) {
     const groups = new Map();
     for (const t of data.tasks) {
       const key = t.project_id ?? 0;
-      if (!groups.has(key)) groups.set(key, { name: t.project_name || 'No project', color: t.project_color || '#94a3b8', tasks: [] });
+      if (!groups.has(key)) groups.set(key, { name: t.project_name || 'No project', color: t.project_color || 'oklch(70% 0.01 265)', tasks: [] });
       groups.get(key).tasks.push(t);
     }
     for (const g of groups.values()) {
@@ -63,7 +63,7 @@ export default function Gantt({ refreshKey, projects, onSelectTask, onError }) {
     <div className="view wide">
       <header className="view-header">
         <div>
-          <h2>📊 Timeline</h2>
+          <h2>Timeline</h2>
           <div className="subtitle">Bars run from Do date to Due date; lines show dependencies</div>
         </div>
         <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
@@ -92,9 +92,9 @@ export default function Gantt({ refreshKey, projects, onSelectTask, onError }) {
               return (
                 <g key={i}>
                   <line x1={x} y1={headerH} x2={x} y2={headerH + layout.rows.length * rowH}
-                    stroke={isMonday || isFirst ? '#d8dee6' : '#eef1f5'} strokeWidth="1" />
+                    style={{ stroke: isMonday || isFirst ? 'var(--card-border)' : 'var(--badge-bg)' }} strokeWidth="1" />
                   {(d.getDay() === 0 || d.getDay() === 6) && layout.dayW >= 14 && (
-                    <rect x={x} y={headerH} width={layout.dayW} height={layout.rows.length * rowH} fill="#f7f8fa" />
+                    <rect x={x} y={headerH} width={layout.dayW} height={layout.rows.length * rowH} style={{ fill: 'var(--badge-bg)' }} />
                   )}
                   {showLabel && (
                     <text x={x + 2} y={headerH - 6} className="gantt-day">{d.getDate()}</text>
@@ -114,7 +114,7 @@ export default function Gantt({ refreshKey, projects, onSelectTask, onError }) {
               if (row.type === 'group') {
                 return (
                   <g key={`g${i}`}>
-                    <rect x={0} y={y} width="100%" height={rowH} fill="#f1f4f8" />
+                    <rect x={0} y={y} width="100%" height={rowH} style={{ fill: 'var(--badge-bg)' }} />
                     <circle cx={12} cy={y + rowH / 2} r={4} fill={row.color} />
                     <text x={24} y={y + rowH / 2 + 4} className="gantt-group">{row.label}</text>
                   </g>
@@ -131,7 +131,7 @@ export default function Gantt({ refreshKey, projects, onSelectTask, onError }) {
                   </text>
                   <rect
                     x={x} y={y + 7} width={w} height={rowH - 14} rx={5}
-                    fill={t.project_color || '#5b7c99'} opacity={done ? 0.3 : 0.85}
+                    style={{ fill: t.project_color || 'var(--accent)' }} opacity={done ? 0.3 : 0.85}
                   />
                   {done && <text x={x + w + 6} y={y + rowH / 2 + 4} className="gantt-day">✓</text>}
                 </g>
@@ -155,8 +155,8 @@ export default function Gantt({ refreshKey, projects, onSelectTask, onError }) {
                 return (
                   <g key={`${depId}-${t.id}`} className="gantt-dep">
                     <path d={`M ${x1} ${y1} L ${x1 + 8} ${y1} L ${x1 + 8} ${y2} L ${x2 - 4} ${y2}`}
-                      fill="none" stroke="#8a94a3" strokeWidth="1.2" strokeDasharray={x2 <= x1 ? '3 2' : 'none'} />
-                    <path d={`M ${x2 - 4} ${y2 - 3} L ${x2 + 1} ${y2} L ${x2 - 4} ${y2 + 3} Z`} fill="#8a94a3" />
+                      fill="none" style={{ stroke: 'var(--text-muted)' }} strokeWidth="1.2" strokeDasharray={x2 <= x1 ? '3 2' : 'none'} />
+                    <path d={`M ${x2 - 4} ${y2 - 3} L ${x2 + 1} ${y2} L ${x2 - 4} ${y2 + 3} Z`} style={{ fill: 'var(--text-muted)' }} />
                   </g>
                 );
               });
@@ -167,7 +167,7 @@ export default function Gantt({ refreshKey, projects, onSelectTask, onError }) {
               const x = labelW + diffDays(layout.startISO, data.today) * layout.dayW + layout.dayW / 2;
               return (
                 <g>
-                  <line x1={x} y1={headerH - 2} x2={x} y2={headerH + layout.rows.length * rowH} stroke="#d64545" strokeWidth="1.5" />
+                  <line x1={x} y1={headerH - 2} x2={x} y2={headerH + layout.rows.length * rowH} style={{ stroke: 'var(--danger)' }} strokeWidth="1.5" />
                   <text x={x + 4} y={headerH - 6} className="gantt-today">today</text>
                 </g>
               );

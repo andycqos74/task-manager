@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import QuickAdd from '../components/QuickAdd.jsx';
 import TaskList from '../components/TaskList.jsx';
+import { SparkleIcon } from '../icons.jsx';
 
 export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, onError }) {
   const [tasks, setTasks] = useState([]);
@@ -47,10 +48,11 @@ export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, 
     <div className="view">
       <header className="view-header">
         <div>
-          <h2>📋 All Tasks</h2>
+          <h2>All Tasks</h2>
         </div>
-        <button onClick={prioritise} disabled={ranking_busy}>
-          {ranking_busy ? 'Thinking…' : settings.ai_available ? '✨ Prioritise (AI)' : '✨ Prioritise'}
+        <button className="ai-action-btn" onClick={prioritise} disabled={ranking_busy}>
+          <SparkleIcon />
+          {ranking_busy ? 'Thinking…' : settings.ai_available ? 'Prioritise (AI)' : 'Prioritise'}
         </button>
       </header>
 
