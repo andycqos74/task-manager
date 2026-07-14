@@ -111,6 +111,13 @@ function validIds(items, tasks) {
   return items.filter((s) => known.has(s.task_id));
 }
 
+// User-supplied guidance from Settings, appended to the system prompt so it
+// can steer both planning and prioritisation (e.g. preferences, focus areas).
+function customInstructions() {
+  const prompt = (getSettings().ai_prompt || '').trim();
+  return prompt ? `\n\nAdditional instructions from the user, which take priority over the general guidance above: ${prompt}` : '';
+}
+
 export async function planMyDay(tasks, today, workdayMinutes) {
   if (!aiAvailable()) return fallbackPlanDay(tasks, today, workdayMinutes);
   try {
@@ -118,7 +125,7 @@ export async function planMyDay(tasks, today, workdayMinutes) {
       'You are a pragmatic personal task planner. You pick which tasks a person should work on today. ' +
         'Weigh due dates (never let things slip), do/start dates, priority, dependencies (never suggest blocked tasks), ' +
         'and total estimated time versus the length of the working day. Prefer finishing started work and quick overdue items. ' +
-        'Suggest a realistic set — not everything.',
+        'Suggest a realistic set — not everything.' + customInstructions(),
       `Today is ${today}. The working day is ${workdayMinutes} minutes.\n` +
         `Pick the tasks I should do today, in the order I should do them, with a short reason for each.\n\n` +
         `Tasks:\n${JSON.stringify(tasksForPrompt(tasks), null, 2)}`,
@@ -139,7 +146,7 @@ export async function prioritise(tasks, today) {
     const result = await structuredCall(
       'You are a pragmatic personal task planner. Rank ALL of the given tasks from most to least important to act on, ' +
         'weighing due dates, do/start dates, priority levels, dependencies (blocked tasks rank last) and estimated effort. ' +
-        'Give a short reason for each ranking.',
+        'Give a short reason for each ranking.' + customInstructions(),
       `Today is ${today}. Rank these tasks:\n${JSON.stringify(tasksForPrompt(tasks), null, 2)}`,
       PRIORITISE_SCHEMA,
     );

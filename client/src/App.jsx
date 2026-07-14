@@ -9,7 +9,7 @@ import Gantt from './views/Gantt.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
-import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon } from './icons.jsx';
+import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon } from './icons.jsx';
 
 const NAV = [
   { key: 'myday', label: 'My Day', Icon: SunIcon },
@@ -18,6 +18,10 @@ const NAV = [
   { key: 'gantt', label: 'Timeline', Icon: BarChartIcon },
 ];
 
+// Below this width the sidebar auto-collapses (matches the notepad's own
+// mobile breakpoint so both switch layout together).
+const NARROW_QUERY = '(max-width: 780px)';
+
 export default function App() {
   const [view, setView] = useState({ name: 'myday' });
   const [projects, setProjects] = useState([]);
@@ -25,8 +29,22 @@ export default function App() {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState(null);
+  const [collapsed, setCollapsed] = useState(() => window.matchMedia(NARROW_QUERY).matches);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Auto-collapse (or re-expand) the sidebar when the viewport crosses the
+  // narrow-screen breakpoint, independent of any manual toggle in between.
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_QUERY);
+    const onChange = (e) => setCollapsed(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-w', collapsed ? '72px' : '262px');
+  }, [collapsed]);
 
   const reportError = useCallback((err) => {
     setError(err.message || String(err));
@@ -57,8 +75,11 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="app">
-        <aside className="sidebar">
+        <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
           <div className="sidebar-brand">
+            <button className="sidebar-toggle" onClick={() => setCollapsed((c) => !c)} aria-label="Toggle menu">
+              <MenuIcon width={18} height={18} />
+            </button>
             <div className="sidebar-logo">T</div>
             <span className="sidebar-wordmark">Tasks</span>
           </div>
@@ -108,6 +129,14 @@ export default function App() {
             </div>
           </div>
         </aside>
+
+        {!collapsed && <div className="sidebar-backdrop" onClick={() => setCollapsed(true)} />}
+
+        {collapsed && (
+          <button className="sidebar-reopen" onClick={() => setCollapsed(false)} aria-label="Open menu">
+            <MenuIcon width={18} height={18} />
+          </button>
+        )}
 
         <main className="main">
           {error && <div className="toast error">{error}</div>}

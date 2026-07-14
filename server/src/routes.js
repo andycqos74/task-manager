@@ -669,6 +669,7 @@ function publicSettings() {
     ai_available: aiAvailable(),
     ai_key_source: hasDbKey ? 'settings' : hasEnvKey ? 'env' : 'none',
     ai_key_last4: hasDbKey ? dbKey.slice(-4) : null,
+    ai_prompt: s.ai_prompt || '',
   };
 }
 
@@ -688,6 +689,13 @@ router.patch('/settings', (req, res) => {
     if (key.length > 300) return badRequest(res, 'API key is too long');
     if (key) setSetting('anthropic_api_key', key);
     else deleteSetting('anthropic_api_key');
+  }
+  if ('ai_prompt' in b) {
+    if (typeof b.ai_prompt !== 'string') return badRequest(res, 'ai_prompt must be a string');
+    const prompt = b.ai_prompt.trim();
+    if (prompt.length > 2000) return badRequest(res, 'AI instructions are too long (max 2000 characters)');
+    if (prompt) setSetting('ai_prompt', prompt);
+    else deleteSetting('ai_prompt');
   }
   res.json(publicSettings());
 });
