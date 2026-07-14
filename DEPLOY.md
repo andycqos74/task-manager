@@ -19,16 +19,16 @@ server, no nginx, no CORS).
 ```bash
 git clone https://github.com/andycqos74/task-manager.git
 cd task-manager
-git checkout claude/task-management-system-7pco4a
 ```
 
 If you already have the repo:
 
 ```bash
-git fetch origin
-git checkout claude/task-management-system-7pco4a
+git checkout main
 git pull
 ```
+
+All deployment now tracks `main` — there is no separate feature branch to check out.
 
 ## 2. (Optional) Add your Anthropic API key
 
@@ -108,21 +108,24 @@ docker compose down      # removes the container, NOT the volume
 
 ## Data persistence & backup
 
-The SQLite database lives in a **named Docker volume** called `taskdata` (mounted at
-`/data`), so all projects, tasks and notes survive restarts, rebuilds, and
-`docker compose down`.
+The SQLite database lives in a **named Docker volume** called `task-manager-data` (mounted
+at `/data`), so all projects, tasks and notes survive restarts, rebuilds, and
+`docker compose down`. The name is pinned in `docker-compose.yml` (rather than left to
+Compose's default `<project>_taskdata` derivation), so it stays the same volume no matter
+what the Compose project or Portainer stack is named — redeploying under a different stack
+name will not silently start you on an empty database.
 
 Back up:
 
 ```bash
-docker run --rm -v task-manager_taskdata:/data -v "$PWD":/backup alpine \
+docker run --rm -v task-manager-data:/data -v "$PWD":/backup alpine \
   tar czf /backup/taskdata-backup.tar.gz -C /data .
 ```
 
 Restore:
 
 ```bash
-docker run --rm -v task-manager_taskdata:/data -v "$PWD":/backup alpine \
+docker run --rm -v task-manager-data:/data -v "$PWD":/backup alpine \
   sh -c "cd /data && tar xzf /backup/taskdata-backup.tar.gz"
 ```
 
@@ -134,10 +137,46 @@ docker run --rm -v task-manager_taskdata:/data -v "$PWD":/backup alpine \
 ```bash
 docker build -t task-manager .
 docker run -d --name task-manager -p 3001:3001 \
-  -v taskdata:/data \
-  -e ANTHROPIC_API_KEY=sk-ant-your-key-here \   # optional
+  -v task-manager-data:/data \
+  -e ANTHROPIC_API_KEY=sk-ant-your-key-here \   # optional — can also be set later in Settings
   --restart unless-stopped task-manager
 ```
+
+## Deploying via Portainer
+
+The most robust way to run this in Portainer is a **Stack deployed from the Git repository**
+(not by pasting the compose file into the web editor) — that gives you a one-click,
+reliable way to pull new commits and rebuild, instead of relying on stale files sitting on
+the Portainer host.
+
+1. **Portainer → Stacks → Add stack**
+2. Name it (e.g. `task-manager`) — the name doesn't affect data persistence since the
+   volume name is pinned in `docker-compose.yml`.
+3. Build method: **Repository**
+   - Repository URL: `https://github.com/andycqos74/task-manager.git`
+   - Repository reference: `refs/heads/main`
+   - Compose path: `docker-compose.yml`
+4. (Optional) Environment variables: `ANTHROPIC_API_KEY` — or skip this and add the key
+   later in the app's **Settings** page instead, which needs no redeploy.
+5. **Deploy the stack.**
+
+**To update after new commits land on `main`:**
+- Open the stack → **Pull and redeploy**. This is the step that actually re-fetches the
+  branch before rebuilding — a plain "restart" or a build without this step reuses whatever
+  source was last pulled, which is the most common cause of "I rebuilt but nothing changed."
+- For hands-off updates, open the stack → **Webhooks** → enable, then trigger the webhook
+  URL after a push (manually with `curl -X POST <url>`, or wire it into a GitHub Action).
+
+**To verify a redeploy actually picked up new code**, check that the API reflects the
+current schema — e.g. after the AI-key-in-Settings change, `/api/settings` gained
+`ai_key_source` and `ai_key_last4` fields:
+
+```bash
+curl -s http://YOUR_HOST:3001/api/settings
+```
+
+If a field you expect from a recent change is missing, the stack rebuilt from stale source
+— re-check step "Pull and redeploy" above rather than rebuilding again with the same source.
 
 ## Notes
 

@@ -16,3 +16,8 @@ services:
 
 volumes:
   taskdata:
+    # Fixed name so the database always attaches to the same volume no
+    # matter what the Compose project / Portainer stack is called — without
+    # this, Compose derives the volume name from the stack name, and
+    # redeploying under a differently-named stack silently starts fresh.
+    name: task-manager-data
