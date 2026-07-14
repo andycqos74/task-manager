@@ -94,6 +94,21 @@ export default function Settings({ settings, refresh, onError }) {
             Stored in the app's database on this server, never shown again after saving.
           </div>
         </div>
+
+        <label>AI instructions</label>
+        <div>
+          <textarea
+            rows={3}
+            className="ai-prompt-field"
+            defaultValue={settings.ai_prompt || ''}
+            placeholder="e.g. Prioritise client-facing work in the mornings; batch admin tasks on Fridays; I prefer to tackle the hardest task first."
+            onBlur={(e) => save({ ai_prompt: e.target.value })}
+          />
+          <div className="hint" style={{ marginTop: 4 }}>
+            Optional — extra guidance Claude uses when planning My Day or prioritising tasks, on top of the built-in rules
+            (deadlines, priority, dependencies, workload).
+          </div>
+        </div>
       </div>
       <div className="banner info" style={{ marginTop: 24 }}>
         <strong>How Do dates work:</strong> by default, Do date = Due date − Estimated TTC. The due date itself

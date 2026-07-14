@@ -40,6 +40,7 @@
   --tag-bg: oklch(94% 0.02 265);
   --chip-bg: oklch(93% 0.006 265);
   --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sidebar-w: 262px;
 }
 
 * { box-sizing: border-box; }
@@ -66,19 +67,61 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
 
 /* ---------- sidebar ---------- */
 .sidebar {
-  width: 262px; flex-shrink: 0; height: 100%;
+  width: var(--sidebar-w); flex-shrink: 0; height: 100%;
   background: var(--sidebar-bg); border-right: 1px solid var(--sidebar-border);
   padding: 22px 14px 16px; display: flex; flex-direction: column; gap: 22px;
-  overflow-y: auto;
+  overflow-y: auto; overflow-x: hidden;
+  transition: width 0.18s ease;
 }
 .sidebar-brand { display: flex; align-items: center; gap: 11px; padding: 0 8px; }
+.sidebar-toggle {
+  border: none; background: transparent; color: var(--sidebar-text-muted);
+  padding: 6px; margin: -6px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sidebar-toggle:hover { background: oklch(24% 0.03 272); color: var(--sidebar-text); }
 .sidebar-logo {
   width: 34px; height: 34px; border-radius: 10px; background: var(--accent);
   display: flex; align-items: center; justify-content: center; color: #fff;
   font-weight: 800; font-size: 16px; flex-shrink: 0;
   box-shadow: 0 6px 16px -6px oklch(62% 0.21 279 / 0.6);
 }
-.sidebar-wordmark { font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: var(--sidebar-text); }
+.sidebar-wordmark { font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: var(--sidebar-text); white-space: nowrap; }
+
+/* Collapsed = a narrow icon-only rail on desktop. */
+.sidebar.collapsed .sidebar-wordmark,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .sidebar-section,
+.sidebar.collapsed .ai-badge {
+  display: none;
+}
+.sidebar.collapsed .sidebar-brand { justify-content: center; padding: 0; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: 11px; }
+.sidebar.collapsed .sidebar-footer { align-items: center; }
+
+.sidebar-backdrop { display: none; }
+.sidebar-reopen { display: none; }
+
+/* Collapsed = fully off-canvas on narrow screens, opened as an overlay. */
+@media (max-width: 780px) {
+  .sidebar {
+    position: fixed; top: 0; left: 0; z-index: 70;
+    width: 262px; transform: translateX(0);
+  }
+  .sidebar.collapsed { transform: translateX(-100%); }
+
+  .sidebar-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 65;
+    background: oklch(15% 0.02 272 / 0.45); animation: fadeIn 0.15s ease;
+  }
+  .sidebar-reopen {
+    display: flex; position: fixed; top: 16px; left: 16px; z-index: 66;
+    width: 38px; height: 38px; align-items: center; justify-content: center;
+    background: var(--sidebar-bg); color: var(--sidebar-text);
+    border: 1px solid var(--sidebar-border); border-radius: 10px; cursor: pointer;
+    box-shadow: 0 4px 14px oklch(20% 0.02 265 / 0.18);
+  }
+}
 
 .nav-item {
   display: flex; align-items: center; gap: 11px; width: 100%;
@@ -298,11 +341,12 @@ button.danger:hover { background: var(--danger-light); }
 
 /* ---------- notepad dock (always visible, fixed beside sidebar) ---------- */
 .notepad-dock {
-  position: fixed; left: 262px; right: 0; bottom: 0; z-index: 40;
+  position: fixed; left: var(--sidebar-w); right: 0; bottom: 0; z-index: 40;
   background: linear-gradient(180deg, var(--sidebar-bg-3), var(--sidebar-bg));
   border-top: 1px solid var(--sidebar-border);
   box-shadow: 0 -10px 28px oklch(15% 0.02 265 / 0.3);
   display: flex; flex-direction: column;
+  transition: left 0.18s ease;
 }
 @media (max-width: 780px) {
   .notepad-dock { left: 0; }
