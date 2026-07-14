@@ -522,12 +522,18 @@ function getNote(id) {
 function sanitizeBlocks(input) {
   if (!Array.isArray(input)) return null;
   const clamp = (v) => Math.max(0, Math.min(Number.isFinite(+v) ? +v : 0, 100000));
-  return input.slice(0, 500).map((b, i) => ({
-    id: typeof b?.id === 'string' && b.id ? b.id.slice(0, 64) : `b${Date.now()}_${i}`,
-    x: clamp(b?.x),
-    y: clamp(b?.y),
-    text: typeof b?.text === 'string' ? b.text.slice(0, 20000) : '',
-  }));
+  return input.slice(0, 500).map((b, i) => {
+    const block = {
+      id: typeof b?.id === 'string' && b.id ? b.id.slice(0, 64) : `b${Date.now()}_${i}`,
+      x: clamp(b?.x),
+      y: clamp(b?.y),
+      text: typeof b?.text === 'string' ? b.text.slice(0, 20000) : '',
+    };
+    // Horizontal resize (drag handle on the note box). Optional — omitted
+    // entirely when unset so old blocks fall back to the CSS default width.
+    if (Number.isFinite(+b?.width)) block.width = Math.max(100, Math.min(+b.width, 1200));
+    return block;
+  });
 }
 
 // Plain-text mirror of the blocks (top-to-bottom, left-to-right) kept in `body`

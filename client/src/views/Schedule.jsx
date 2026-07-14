@@ -27,7 +27,7 @@ export default function Schedule({ refreshKey, refresh, onSelectTask, onError })
     <div className="view">
       <header className="view-header">
         <div>
-          <h2>📅 Upcoming</h2>
+          <h2>Upcoming</h2>
           <div className="subtitle">Grouped by Do date — when the work should happen</div>
         </div>
       </header>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api, formatEstimate } from '../api.js';
 import QuickAdd from '../components/QuickAdd.jsx';
 import TaskList from '../components/TaskList.jsx';
+import { SparkleIcon } from '../icons.jsx';
 
 export default function MyDay({ refreshKey, refresh, settings, onSelectTask, onError }) {
   const [data, setData] = useState(null);
@@ -50,14 +51,15 @@ export default function MyDay({ refreshKey, refresh, settings, onSelectTask, onE
     <div className="view">
       <header className="view-header">
         <div>
-          <h2>☀️ My Day</h2>
+          <h2>My Day</h2>
           <div className="subtitle">
             {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
             {data.done_today > 0 && ` · ${data.done_today} done today`}
           </div>
         </div>
-        <button onClick={planDay} disabled={planning}>
-          {planning ? 'Thinking…' : settings.ai_available ? '✨ Plan my day (AI)' : '✨ Suggest tasks'}
+        <button className="ai-action-btn" onClick={planDay} disabled={planning}>
+          <SparkleIcon />
+          {planning ? 'Thinking…' : settings.ai_available ? 'Plan my day (AI)' : 'Suggest tasks'}
         </button>
       </header>
 
@@ -82,7 +84,10 @@ export default function MyDay({ refreshKey, refresh, settings, onSelectTask, onE
       {plan && (
         <div className="ai-panel">
           <div className="ai-panel-header">
-            <strong>{plan.source === 'ai' ? '✨ Claude suggests' : 'Suggestions'}</strong>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {plan.source === 'ai' && <SparkleIcon width={13} height={13} style={{ color: 'var(--ai)' }} />}
+              {plan.source === 'ai' ? 'Claude suggests' : 'Suggestions'}
+            </strong>
             <button className="link" onClick={() => setPlan(null)}>dismiss</button>
           </div>
           <p className="subtitle">{plan.summary}</p>

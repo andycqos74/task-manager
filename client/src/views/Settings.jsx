@@ -41,7 +41,7 @@ export default function Settings({ settings, refresh, onError }) {
 
   return (
     <div className="view">
-      <header className="view-header"><h2>⚙️ Settings</h2></header>
+      <header className="view-header"><h2>Settings</h2></header>
       <div className="field-grid settings-fields">
         <label>Workday length</label>
         <div className="inline">
@@ -86,7 +86,7 @@ export default function Settings({ settings, refresh, onError }) {
               onChange={(e) => setKeyInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && saveKey()}
             />
-            <button className="small" onClick={saveKey} disabled={savingKey || !keyInput.trim()}>
+            <button className="btn-outline" onClick={saveKey} disabled={savingKey || !keyInput.trim()}>
               {settings.ai_key_source === 'settings' ? 'Update key' : 'Save key'}
             </button>
           </div>

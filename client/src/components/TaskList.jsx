@@ -1,5 +1,6 @@
 import React from 'react';
 import { api, formatDate, formatEstimate, todayISO } from '../api.js';
+import { SunIcon } from '../icons.jsx';
 
 const PRIORITY_LABEL = { urgent: 'Urgent', high: 'High', medium: '', low: 'Low' };
 
@@ -31,13 +32,13 @@ export function TaskRow({ task, onSelect, onChanged, onError, showProject = true
   const subDone = task.subtasks?.filter((s) => s.done).length || 0;
 
   return (
-    <div className={`task-row ${done ? 'done' : ''}`} onClick={() => onSelect?.(task.id)}>
+    <div className={`task-row priority-${task.priority} ${done ? 'done' : ''}`} onClick={() => onSelect?.(task.id)}>
       <button className={`check ${done ? 'checked' : ''}`} onClick={toggleDone} title={done ? 'Reopen' : 'Complete'}>
         {done ? '✓' : ''}
       </button>
       <div className="task-main">
         <div className="task-title">
-          {task.blocked && <span className="badge blocked" title="Waiting on another task">⛓ blocked</span>}
+          {task.blocked && <span className="badge blocked" title="Waiting on another task">Blocked</span>}
           {task.title}
         </div>
         <div className="task-meta">
@@ -60,7 +61,7 @@ export function TaskRow({ task, onSelect, onChanged, onError, showProject = true
       {!done && (
         <button className={`myday-toggle ${inMyDay ? 'on' : ''}`} onClick={toggleMyDay}
           title={inMyDay ? 'Remove from My Day' : 'Add to My Day'}>
-          ☀
+          <SunIcon width={16} height={16} />
         </button>
       )}
     </div>

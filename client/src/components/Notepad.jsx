@@ -1,10 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { PencilIcon } from '../icons.jsx';
 
-const RULE = 28; // px between ruled lines; also the block text line-height
+const MIN_BLOCK_HEIGHT = 28;
 const MIN_HEIGHT = 120;
 const DEFAULT_HEIGHT = 240;
-const EXPAND_FRACTION = 0.65; // "expand" preset as a fraction of viewport height
 
 function maxHeight() {
   return Math.max(300, window.innerHeight - 220);
@@ -17,12 +17,13 @@ function uid() {
 function autosize(el) {
   if (!el) return;
   el.style.height = 'auto';
-  el.style.height = `${Math.max(RULE, el.scrollHeight)}px`;
+  el.style.height = `${Math.max(MIN_BLOCK_HEIGHT, el.scrollHeight)}px`;
 }
 
-// A single free-floating text block on the page. Auto-sizes to its content and
-// can be dragged around by its handle.
-function NoteBlock({ block, onChange, onMove, onRemove, onActive, autofocus }) {
+// A single free-floating text block on the page. Auto-sizes to its content,
+// can be dragged around by its handle, and resized horizontally via the
+// browser's native textarea resize handle (bottom-right corner).
+function NoteBlock({ block, onChange, onMove, onResizeWidth, onRemove, onActive, autofocus }) {
   const ref = useRef(null);
   const everTyped = useRef(false);
   useEffect(() => { autosize(ref.current); }, [block.text]);
@@ -33,6 +34,16 @@ function NoteBlock({ block, onChange, onMove, onRemove, onActive, autofocus }) {
     if (autofocus && ref.current) { ref.current.focus(); onActive(ref.current); }
   }, []);
   if (block.text.trim()) everTyped.current = true;
+
+  // The native resize handle changes width without firing a React event —
+  // watch for it so the new width gets saved instead of reverting on reload.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => onResizeWidth(el.offsetWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function startDrag(e) {
     e.preventDefault();
@@ -60,6 +71,7 @@ function NoteBlock({ block, onChange, onMove, onRemove, onActive, autofocus }) {
         value={block.text}
         rows={1}
         placeholder="note…"
+        style={block.width ? { width: block.width } : undefined}
         onFocus={() => onActive(ref.current)}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => { if (!block.text.trim() && everTyped.current) onRemove(); }}
@@ -94,6 +106,14 @@ export default function Notepad({ projects, context, refresh, onError }) {
   useEffect(() => {
     localStorage.setItem('notepad-height', String(pageHeight));
   }, [pageHeight]);
+
+  // The notepad is fixed-positioned (so it never covers the sidebar), which
+  // takes it out of normal flex flow — reserve matching space at the bottom
+  // of .main so page content never sits underneath it.
+  useEffect(() => {
+    const reserved = collapsed ? 48 : pageHeight + 56;
+    document.documentElement.style.setProperty('--notepad-space', `${reserved}px`);
+  }, [collapsed, pageHeight]);
 
   // Drag the handle above the page to resize it vertically.
   function startResize(e) {
@@ -168,7 +188,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
     dirtyRef.current = true;
   }
 
-  // Click on empty page space -> start a new note block there.
+  // Click on empty page space -> start a new note block right there.
   function onPageMouseDown(e) {
     if (e.target !== pageRef.current) return; // ignore clicks on existing blocks
     // Stop the browser moving focus to the non-focusable page, which would
@@ -176,14 +196,15 @@ export default function Notepad({ projects, context, refresh, onError }) {
     e.preventDefault();
     const rect = pageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left + pageRef.current.scrollLeft;
-    const y = Math.round((e.clientY - rect.top + pageRef.current.scrollTop) / RULE) * RULE; // snap to a line
+    const y = e.clientY - rect.top + pageRef.current.scrollTop;
     const id = uid();
     setNewBlockId(id);
-    mutateBlocks((blocks) => [...blocks, { id, x: Math.round(x), y: Math.max(0, y), text: '' }]);
+    mutateBlocks((blocks) => [...blocks, { id, x: Math.round(x), y: Math.max(0, Math.round(y)), text: '' }]);
   }
 
   const editBlock = (id, text) => mutateBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, text } : b)));
   const moveBlock = (id, x, y) => mutateBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, x, y } : b)));
+  const resizeBlock = (id, width) => mutateBlocks((bs) => bs.map((b) => (b.id === id && b.width !== width ? { ...b, width } : b)));
   const removeBlock = (id) => mutateBlocks((bs) => bs.filter((b) => b.id !== id));
 
   async function newNote() {
@@ -273,7 +294,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
       )}
       <div className="notepad-bar">
         <button className="notepad-toggle" onClick={() => setCollapsed((c) => !c)}>
-          🗒 Notepad {collapsed ? '▲' : '▼'}
+          <PencilIcon /> Notepad {collapsed ? '▲' : '▼'}
         </button>
         {!collapsed && note && (
           <>
@@ -300,7 +321,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
                 onChange={(e) => { setNote((n) => ({ ...n, title: e.target.value })); dirtyRef.current = true; }}
               />
             )}
-            <select value={attachValue} onChange={(e) => setAttachment(e.target.value)} title="Attach this note">
+            <select className="attach-select" value={attachValue} onChange={(e) => setAttachment(e.target.value)} title="Attach this note">
               <option value="standalone">Standalone</option>
               {context?.taskId && <option value={`task:${context.taskId}`}>Attach to open task</option>}
               {note.task_id && note.task_id !== context?.taskId && (
@@ -312,7 +333,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
                 ))}
               </optgroup>
             </select>
-            <button className="small" onClick={lineToTask} title="Turn the current line or selection into a task">
+            <button className="to-task-btn" onClick={lineToTask} title="Turn the current line or selection into a task">
               → Task
             </button>
             {!note.is_scratch && <button className="link" onClick={deleteNote}>delete</button>}
@@ -331,6 +352,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
               block={block}
               onChange={(text) => editBlock(block.id, text)}
               onMove={(x, y) => moveBlock(block.id, x, y)}
+              onResizeWidth={(w) => resizeBlock(block.id, w)}
               onRemove={() => removeBlock(block.id)}
               onActive={(el) => { activeRef.current = el; }}
               autofocus={block.id === newBlockId}
