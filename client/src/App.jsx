@@ -10,6 +10,7 @@ import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
 import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon } from './icons.jsx';
+import logo from './assets/logo.jpg';
 
 const NAV = [
   { key: 'myday', label: 'My Day', Icon: SunIcon },
@@ -80,8 +81,8 @@ export default function App() {
             <button className="sidebar-toggle" onClick={() => setCollapsed((c) => !c)} aria-label="Toggle menu">
               <MenuIcon width={18} height={18} />
             </button>
-            <div className="sidebar-logo">T</div>
-            <span className="sidebar-wordmark">Tasks</span>
+            <img className="sidebar-logo" src={logo} alt="" />
+            <span className="sidebar-wordmark">this-organiser</span>
           </div>
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

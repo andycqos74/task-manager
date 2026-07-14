@@ -81,12 +81,13 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
 }
 .sidebar-toggle:hover { background: oklch(24% 0.03 272); color: var(--sidebar-text); }
 .sidebar-logo {
-  width: 34px; height: 34px; border-radius: 10px; background: var(--accent);
-  display: flex; align-items: center; justify-content: center; color: #fff;
-  font-weight: 800; font-size: 16px; flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; object-fit: cover;
   box-shadow: 0 6px 16px -6px oklch(62% 0.21 279 / 0.6);
 }
-.sidebar-wordmark { font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: var(--sidebar-text); white-space: nowrap; }
+.sidebar-wordmark {
+  font-family: 'Caslon Antique', Georgia, 'Times New Roman', serif;
+  font-weight: 600; font-size: 22px; letter-spacing: 0.01em; color: var(--sidebar-text); white-space: nowrap;
+}
 
 /* Collapsed = a narrow icon-only rail on desktop. */
 .sidebar.collapsed .sidebar-wordmark,
