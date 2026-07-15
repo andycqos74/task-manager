@@ -248,20 +248,14 @@ export default function Notepad({ projects, context, refresh, onError }) {
     setTimeout(() => setFlash(''), 4000);
   }
 
-  // Turn the focused block's current line (or its selection) into a task.
+  // Turn the focused block's selection (or, with nothing selected, the
+  // whole note) into a task: first line becomes the title, the rest goes
+  // into the task's Notes field.
   async function lineToTask() {
     const ta = activeRef.current;
     if (!ta || !ta.isConnected) { flashMsg('Click into a note first, then “→ Task”.'); return; }
     const value = ta.value || '';
-    let chosen;
-    if (ta.selectionStart !== ta.selectionEnd) {
-      chosen = value.slice(ta.selectionStart, ta.selectionEnd);
-    } else {
-      const start = value.lastIndexOf('\n', ta.selectionStart - 1) + 1;
-      let end = value.indexOf('\n', ta.selectionStart);
-      if (end === -1) end = value.length;
-      chosen = value.slice(start, end);
-    }
+    const chosen = ta.selectionStart !== ta.selectionEnd ? value.slice(ta.selectionStart, ta.selectionEnd) : value;
     const lines = chosen.split('\n').map((l) => l.trim()).filter(Boolean);
     if (!lines.length) { flashMsg('Put the cursor on a line, or select text, first.'); return; }
     try {

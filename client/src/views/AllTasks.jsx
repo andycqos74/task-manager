@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api, sortTasks } from '../api.js';
 import QuickAdd from '../components/QuickAdd.jsx';
 import TaskList from '../components/TaskList.jsx';
+import TaskFilterBar from '../components/TaskFilterBar.jsx';
 import { SparkleIcon } from '../icons.jsx';
 
 export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, onError }) {
@@ -9,6 +10,8 @@ export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, 
   const [tags, setTags] = useState([]);
   const [q, setQ] = useState('');
   const [tag, setTag] = useState('');
+  const [priority, setPriority] = useState('');
+  const [sort, setSort] = useState('due_date');
   const [showDone, setShowDone] = useState(false);
   const [ranking, setRanking] = useState(null);
   const [ranking_busy, setRankingBusy] = useState(false);
@@ -33,7 +36,8 @@ export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, 
     }
   }
 
-  let shown = tasks;
+  let shown = priority ? tasks.filter((t) => t.priority === priority) : tasks;
+  shown = sortTasks(shown, sort);
   const reasonById = {};
   if (ranking) {
     const rankById = {};
@@ -56,17 +60,14 @@ export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, 
         </button>
       </header>
 
-      <div className="filters">
-        <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select value={tag} onChange={(e) => setTag(e.target.value)}>
-          <option value="">All tags</option>
-          {tags.map((t) => <option key={t} value={t}>#{t}</option>)}
-        </select>
-        <label className="inline">
-          <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> show done
-        </label>
-        {ranking && <button className="link" onClick={() => setRanking(null)}>clear ranking</button>}
-      </div>
+      <TaskFilterBar
+        q={q} onQChange={setQ}
+        tags={tags} tag={tag} onTagChange={setTag}
+        priority={priority} onPriorityChange={setPriority}
+        sort={sort} onSortChange={setSort}
+        showDone={showDone} onShowDoneChange={setShowDone}
+      />
+      {ranking && <div className="filters"><button className="link" onClick={() => setRanking(null)}>clear AI ranking</button></div>}
 
       {ranking && <div className="banner info">{ranking.summary}</div>}
 

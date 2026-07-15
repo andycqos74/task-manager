@@ -270,6 +270,7 @@ button.btn-outline:disabled { opacity: 0.5; cursor: default; }
   padding: 8px 12px; border: 1px solid var(--card-border); border-radius: 9px; background: #fff;
   font-size: 13.5px; font-family: inherit; color: var(--text-primary);
 }
+.filters .search-input { flex: 1; min-width: 160px; }
 label.inline { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; }
 
 /* ---------- task detail drawer ---------- */
