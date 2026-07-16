@@ -5,10 +5,11 @@ import TaskList from '../components/TaskList.jsx';
 import TaskFilterBar from '../components/TaskFilterBar.jsx';
 import { SparkleIcon } from '../icons.jsx';
 
-export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, onError }) {
+// q/onQChange are controlled from App so the header's global search can
+// jump here with a query already applied.
+export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, onError, q, onQChange }) {
   const [tasks, setTasks] = useState([]);
   const [tags, setTags] = useState([]);
-  const [q, setQ] = useState('');
   const [tag, setTag] = useState('');
   const [priority, setPriority] = useState('');
   const [sort, setSort] = useState('due_date');
@@ -61,7 +62,7 @@ export default function AllTasks({ refreshKey, refresh, settings, onSelectTask, 
       </header>
 
       <TaskFilterBar
-        q={q} onQChange={setQ}
+        q={q} onQChange={onQChange}
         tags={tags} tag={tag} onTagChange={setTag}
         priority={priority} onPriorityChange={setPriority}
         sort={sort} onSortChange={setSort}

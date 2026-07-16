@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../api.js';
 
 const COLORS = [
-  'oklch(56% 0.16 265)', // indigo
+  'oklch(60% 0.13 66)',  // gold (accent)
   'oklch(60% 0.14 155)', // green
   'oklch(72% 0.15 75)',  // amber
   'oklch(58% 0.16 25)',  // red
