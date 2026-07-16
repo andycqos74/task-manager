@@ -10,8 +10,8 @@ import Gantt from './views/Gantt.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
-import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon } from './icons.jsx';
-import logo from './assets/logo.jpg';
+import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon } from './icons.jsx';
+import impMark from './assets/imp-cut.png';
 
 const NAV = [
   { key: 'myday', label: 'My Day', Icon: SunIcon },
@@ -34,6 +34,8 @@ export default function App() {
   const [error, setError] = useState(null);
   const [isNarrow, setIsNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
   const [collapsed, setCollapsed] = useState(isNarrow);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [taskSearch, setTaskSearch] = useState('');
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -53,6 +55,12 @@ export default function App() {
     setView(v);
     if (isNarrow) setCollapsed(true);
   }, [isNarrow]);
+
+  // Header search jumps to All Tasks with the query applied.
+  function onHeaderSearch(value) {
+    setTaskSearch(value);
+    goTo({ name: 'all' });
+  }
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '72px' : '262px');
@@ -78,6 +86,10 @@ export default function App() {
     setView,
   };
 
+  // All Tasks' search box is controlled from here so the header search can
+  // jump straight to it with the query already applied.
+  const allTasksProps = { ...viewProps, q: taskSearch, onQChange: setTaskSearch };
+
   // What the always-visible notepad can attach a note to right now.
   const noteContext = {
     projectId: view.name === 'project' ? view.projectId : null,
@@ -86,14 +98,44 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <header className="app-header">
+        <div className="brand-mark">
+          <span className="brand-this">this</span>
+          <span className="brand-imp">
+            <img src={impMark} alt="" width={78} height={60} />
+            <span className="brand-imp-glow" style={{ top: 24 }} />
+            <span className="brand-imp-glow" style={{ top: 44 }} />
+          </span>
+          <span>or</span><span className="brand-g">g</span><span>aniser</span>
+        </div>
+        <div className="app-header-actions">
+          {searchOpen && (
+            <input
+              className="header-search-input"
+              autoFocus
+              placeholder="Search tasks…"
+              value={taskSearch}
+              onChange={(e) => onHeaderSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setSearchOpen(false)}
+            />
+          )}
+          <button className="header-icon-btn" title="Search" onClick={() => setSearchOpen((o) => !o)}>
+            <SearchIcon width={18} height={18} />
+          </button>
+          <button className="header-icon-btn" title="Notifications">
+            <BellIcon width={18} height={18} />
+            <span className="header-dot" />
+          </button>
+          <div className="header-avatar" title="Account">A</div>
+        </div>
+      </header>
+
       <div className="app">
         <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-          <div className="sidebar-brand">
+          <div className="sidebar-toggle-row">
             <button className="sidebar-toggle" onClick={() => setCollapsed((c) => !c)} aria-label="Toggle menu">
               <MenuIcon width={18} height={18} />
             </button>
-            <img className="sidebar-logo" src={logo} alt="" />
-            <span className="sidebar-wordmark">this-organiser</span>
           </div>
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -154,7 +196,7 @@ export default function App() {
           {error && <div className="toast error">{error}</div>}
           {view.name === 'myday' && <MyDay {...viewProps} />}
           {view.name === 'schedule' && <Schedule {...viewProps} />}
-          {view.name === 'all' && <AllTasks {...viewProps} />}
+          {view.name === 'all' && <AllTasks {...allTasksProps} />}
           {view.name === 'review' && <Review {...viewProps} />}
           {view.name === 'gantt' && <Gantt {...viewProps} />}
           {view.name === 'projects' && <Projects {...viewProps} />}
