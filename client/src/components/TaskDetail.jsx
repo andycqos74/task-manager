@@ -111,6 +111,17 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
     }
   }
 
+  async function convertToIdea() {
+    if (!confirm(`Move "${task.title}" to the Backlog as an idea? The task will be removed.`)) return;
+    try {
+      await api.post(`/tasks/${task.id}/convert-to-idea`);
+      onChanged?.();
+      onClose?.();
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+
   const inMyDay = task.my_day_date === todayISO();
   const depIds = task.dependencies.map((d) => d.id);
   const rec = task.recurrence;
@@ -126,6 +137,12 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
         </button>
         <button className="link" onClick={onClose}>Close ✕</button>
       </div>
+
+      {task.story_title && (
+        <div className="detail-parent">
+          <span className="badge dev">⚙ {task.epic_title ? `${task.epic_title} › ` : ''}{task.story_title}</span>
+        </div>
+      )}
 
       <input
         className="detail-title"
@@ -257,6 +274,7 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
 
       <div className="detail-footer">
         <button className="danger" onClick={remove}>Delete task</button>
+        <button className="btn-outline" onClick={convertToIdea}>Convert to idea</button>
       </div>
     </aside>
   );

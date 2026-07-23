@@ -7,10 +7,12 @@ import Review from './views/Review.jsx';
 import Projects from './views/Projects.jsx';
 import ProjectDetail from './views/ProjectDetail.jsx';
 import Gantt from './views/Gantt.jsx';
+import Backlog from './views/Backlog.jsx';
+import Roadmap from './views/Roadmap.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
-import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon } from './icons.jsx';
+import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon } from './icons.jsx';
 import impMark from './assets/imp-cut.png';
 
 const NAV = [
@@ -19,6 +21,12 @@ const NAV = [
   { key: 'all', label: 'All Tasks', Icon: ListIcon },
   { key: 'review', label: 'Review', Icon: InboxIcon },
   { key: 'gantt', label: 'Timeline', Icon: BarChartIcon },
+];
+
+// Development-tracking section, kept separate from the to-do nav above.
+const DEV_NAV = [
+  { key: 'backlog', label: 'Backlog', Icon: LightbulbIcon },
+  { key: 'roadmap', label: 'Roadmap', Icon: MapIcon },
 ];
 
 // Below this width the sidebar auto-collapses (matches the notepad's own
@@ -167,9 +175,26 @@ export default function App() {
                   >
                     <span className="dot" style={{ background: p.color, boxShadow: `0 0 0 3px color-mix(in srgb, ${p.color} 22%, transparent)` }} />
                     <span className="nav-label">{p.name}</span>
+                    {p.track_dev ? <LayersIcon width={13} height={13} className="nav-dev-mark" /> : null}
                     {p.open_tasks > 0 && <span className="count">{p.open_tasks}</span>}
                   </button>
                 ))}
+            </nav>
+          </div>
+
+          <div className="sidebar-section dev-nav">
+            <div className="sidebar-heading"><span>Development</span></div>
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {DEV_NAV.map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  className={`nav-item ${view.name === key ? 'active' : ''}`}
+                  onClick={() => goTo({ name: key })}
+                >
+                  <Icon width={18} height={18} />
+                  <span className="nav-label">{label}</span>
+                </button>
+              ))}
             </nav>
           </div>
 
@@ -199,6 +224,8 @@ export default function App() {
           {view.name === 'all' && <AllTasks {...allTasksProps} />}
           {view.name === 'review' && <Review {...viewProps} />}
           {view.name === 'gantt' && <Gantt {...viewProps} />}
+          {view.name === 'backlog' && <Backlog {...viewProps} />}
+          {view.name === 'roadmap' && <Roadmap {...viewProps} />}
           {view.name === 'projects' && <Projects {...viewProps} />}
           {view.name === 'project' && <ProjectDetail {...viewProps} projectId={view.projectId} key={view.projectId} />}
           {view.name === 'settings' && <Settings {...viewProps} />}
