@@ -463,9 +463,10 @@ button.danger:hover { background: var(--danger-light); }
 .danger-link { color: var(--danger); }
 .danger-link:hover { color: var(--danger-dark); }
 
-/* Ideas backlog */
+/* Ideas + bugs backlog */
 .idea-list { display: flex; flex-direction: column; gap: 8px; }
-.idea-card { background: #fff; border: 1px solid var(--card-border); border-radius: 13px; overflow: hidden; }
+.idea-card { background: #fff; border: 1px solid var(--card-border); border-left: 3px solid transparent; border-radius: 13px; overflow: hidden; }
+.idea-card.bug { border-left-color: var(--danger); }
 .idea-card.promoted { opacity: 0.7; }
 .idea-card.archived { opacity: 0.55; }
 .idea-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 13px 15px; cursor: pointer; }
@@ -478,15 +479,19 @@ button.danger:hover { background: var(--danger-light); }
 .idea-promote { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .idea-promote label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 .idea-promote select { padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--text-primary); background: #fff; }
+.idea-project { display: flex; align-items: center; gap: 8px; }
+.idea-project label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.idea-project select { padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--text-primary); background: #fff; }
 .idea-actions { display: flex; gap: 12px; }
+.quick-add-project { border: none; background: var(--badge-bg); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; font-family: inherit; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
 
-/* Notepad → Idea button (mirrors → Task) */
-.notepad-bar .to-idea-btn {
+/* Notepad → Idea / → Bug buttons (mirror → Task) */
+.notepad-bar .to-idea-btn, .notepad-bar .to-bug-btn {
   background: var(--sidebar-chip-bg); color: var(--sidebar-text); border: 1px solid var(--sidebar-chip-border);
   border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; font-family: inherit;
   cursor: pointer; white-space: nowrap;
 }
-.notepad-bar .to-idea-btn:hover { background: oklch(36% 0.03 186); }
+.notepad-bar .to-idea-btn:hover, .notepad-bar .to-bug-btn:hover { background: oklch(36% 0.03 186); }
 
 .detail-parent { margin-bottom: 8px; }
 

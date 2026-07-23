@@ -140,6 +140,16 @@ export function LightbulbIcon(props) {
   );
 }
 
+export function BugIcon(props) {
+  return (
+    <svg {...base} strokeLinejoin="round" {...props}>
+      <rect x="8" y="6" width="8" height="14" rx="4" />
+      <path d="M12 2v2M9 4l1.5 2M15 4l-1.5 2" />
+      <path d="M8 10H3M8 14H2M8 18l-4 2M16 10h5M16 14h6M16 18l4 2" />
+    </svg>
+  );
+}
+
 export function MapIcon(props) {
   return (
     <svg {...base} strokeLinejoin="round" {...props}>

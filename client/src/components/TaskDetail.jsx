@@ -122,6 +122,17 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
     }
   }
 
+  async function reportBug() {
+    if (!confirm(`Move "${task.title}" to Bugs? The task will be removed.`)) return;
+    try {
+      await api.post(`/tasks/${task.id}/convert-to-bug`);
+      onChanged?.();
+      onClose?.();
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+
   const inMyDay = task.my_day_date === todayISO();
   const depIds = task.dependencies.map((d) => d.id);
   const rec = task.recurrence;
@@ -275,6 +286,7 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
       <div className="detail-footer">
         <button className="danger" onClick={remove}>Delete task</button>
         <button className="btn-outline" onClick={convertToIdea}>Convert to idea</button>
+        <button className="btn-outline" onClick={reportBug}>Report bug</button>
       </div>
     </aside>
   );

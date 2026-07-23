@@ -12,6 +12,7 @@ const PROJECT_STATUSES = ['active', 'on_hold', 'completed', 'archived'];
 // Pipeline stages for the dev-tracking tiers (epics + user stories).
 const DEV_STATUSES = ['backlog', 'in_progress', 'in_review', 'done', 'deployed'];
 const IDEA_STATUSES = ['open', 'promoted', 'archived'];
+const IDEA_KINDS = ['idea', 'bug'];
 const DEV_TAG = 'development';
 
 function badRequest(res, message) {
@@ -873,11 +874,15 @@ router.get('/roadmap', (req, res) => {
   res.json({ today: todayISO(), projects, epics });
 });
 
-// ---------- ideas backlog ----------
+// ---------- ideas + bugs backlog ----------
 
 router.get('/ideas', (req, res) => {
   const clauses = [];
   const params = [];
+  if (req.query.kind) {
+    clauses.push('i.kind = ?');
+    params.push(req.query.kind);
+  }
   if (req.query.status) {
     clauses.push('i.status = ?');
     params.push(req.query.status);
@@ -911,11 +916,12 @@ function getIdea(id) {
 router.post('/ideas', (req, res) => {
   const b = req.body || {};
   if (!b.title || !String(b.title).trim()) return badRequest(res, 'title is required');
+  if (b.kind && !IDEA_KINDS.includes(b.kind)) return badRequest(res, 'invalid kind');
   if (b.status && !IDEA_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
   if (b.project_id != null && !db.prepare('SELECT id FROM projects WHERE id = ?').get(b.project_id)) return badRequest(res, 'project not found');
   const info = db
-    .prepare('INSERT INTO ideas (title, description, project_id, status) VALUES (?,?,?,?)')
-    .run(String(b.title).trim(), b.description || '', b.project_id || null, b.status || 'open');
+    .prepare('INSERT INTO ideas (kind, title, description, project_id, status) VALUES (?,?,?,?,?)')
+    .run(b.kind || 'idea', String(b.title).trim(), b.description || '', b.project_id || null, b.status || 'open');
   res.status(201).json(getIdea(info.lastInsertRowid));
 });
 
@@ -995,19 +1001,21 @@ router.post('/ideas/:id/promote', (req, res) => {
   return res.status(201).json({ level, task });
 });
 
-// Convert an existing task into an idea (move: the task is removed).
-router.post('/tasks/:id/convert-to-idea', (req, res) => {
+// Convert an existing task into a backlog idea or bug (move: task is removed).
+function convertTaskToBacklog(req, res, kind) {
   const task = getTask(req.params.id);
   if (!task) return res.status(404).json({ error: 'task not found' });
-  const idea = db.transaction(() => {
+  const item = db.transaction(() => {
     const info = db
-      .prepare('INSERT INTO ideas (title, description, project_id) VALUES (?,?,?)')
-      .run(task.title, task.notes || '', task.project_id || null);
+      .prepare('INSERT INTO ideas (kind, title, description, project_id) VALUES (?,?,?,?)')
+      .run(kind, task.title, task.notes || '', task.project_id || null);
     db.prepare('DELETE FROM tasks WHERE id = ?').run(task.id);
     return getIdea(info.lastInsertRowid);
   })();
-  res.status(201).json(idea);
-});
+  res.status(201).json(item);
+}
+router.post('/tasks/:id/convert-to-idea', (req, res) => convertTaskToBacklog(req, res, 'idea'));
+router.post('/tasks/:id/convert-to-bug', (req, res) => convertTaskToBacklog(req, res, 'bug'));
 
 // ---------- tags / settings / ai ----------
 
