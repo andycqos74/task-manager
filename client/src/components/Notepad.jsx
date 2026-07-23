@@ -294,6 +294,25 @@ export default function Notepad({ projects, context, refresh, onError }) {
     }
   }
 
+  // Turn the focused block into a bug (title + description), attached to the
+  // note's project/context if there is one.
+  async function lineToBug() {
+    const lines = focusedLines('→ Bug');
+    if (!lines) return;
+    try {
+      const bug = await api.post('/ideas', {
+        kind: 'bug',
+        title: lines[0],
+        description: lines.slice(1).join('\n'),
+        project_id: note.project_id || context?.projectId || null,
+      });
+      refresh?.();
+      flashMsg(`Logged bug: “${bug.title}”`);
+    } catch (err) {
+      onError(err);
+    }
+  }
+
   const attachValue = note?.task_id
     ? `task:${note.task_id}`
     : note?.project_id
@@ -355,6 +374,9 @@ export default function Notepad({ projects, context, refresh, onError }) {
             </button>
             <button className="to-idea-btn" onClick={lineToIdea} title="Turn the current line or selection into a backlog idea">
               → Idea
+            </button>
+            <button className="to-bug-btn" onClick={lineToBug} title="Turn the current line or selection into a bug">
+              → Bug
             </button>
             {!note.is_scratch && <button className="link" onClick={deleteNote}>delete</button>}
             <span className="notepad-status">{saving ? 'saving…' : flash || 'saved'}</span>

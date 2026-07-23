@@ -102,9 +102,11 @@ CREATE TABLE IF NOT EXISTS user_stories (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Ideas backlog: a separate capture pool, promotable into the dev hierarchy.
+-- Ideas + bugs backlog: a separate capture pool, promotable into the dev
+-- hierarchy. The kind column distinguishes the two lists (same shape otherwise).
 CREATE TABLE IF NOT EXISTS ideas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL DEFAULT 'idea' CHECK (kind IN ('idea','bug')),
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
@@ -134,8 +136,10 @@ ensureColumn('notes', 'blocks', "blocks TEXT NOT NULL DEFAULT '[]'");
 // Development-tracking additions (retrofit for pre-existing databases).
 ensureColumn('projects', 'track_dev', 'track_dev INTEGER NOT NULL DEFAULT 0');
 ensureColumn('tasks', 'story_id', 'story_id INTEGER REFERENCES user_stories(id) ON DELETE SET NULL');
-// Index on tasks.story_id created after the column is guaranteed to exist.
+ensureColumn('ideas', 'kind', "kind TEXT NOT NULL DEFAULT 'idea' CHECK (kind IN ('idea','bug'))");
+// Indexes on retrofitted columns created after the column is guaranteed to exist.
 db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_story ON tasks(story_id);');
+db.exec('CREATE INDEX IF NOT EXISTS idx_ideas_kind ON ideas(kind);');
 
 const DEFAULT_SETTINGS = {
   workday_minutes: '480',

@@ -12,7 +12,7 @@ import Roadmap from './views/Roadmap.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
-import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon } from './icons.jsx';
+import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon } from './icons.jsx';
 import impMark from './assets/imp-cut.png';
 
 const NAV = [
@@ -26,6 +26,7 @@ const NAV = [
 // Development-tracking section, kept separate from the to-do nav above.
 const DEV_NAV = [
   { key: 'backlog', label: 'Backlog', Icon: LightbulbIcon },
+  { key: 'bugs', label: 'Bugs', Icon: BugIcon },
   { key: 'roadmap', label: 'Roadmap', Icon: MapIcon },
 ];
 
@@ -224,7 +225,8 @@ export default function App() {
           {view.name === 'all' && <AllTasks {...allTasksProps} />}
           {view.name === 'review' && <Review {...viewProps} />}
           {view.name === 'gantt' && <Gantt {...viewProps} />}
-          {view.name === 'backlog' && <Backlog {...viewProps} />}
+          {view.name === 'backlog' && <Backlog kind="idea" key="backlog" {...viewProps} />}
+          {view.name === 'bugs' && <Backlog kind="bug" key="bugs" {...viewProps} />}
           {view.name === 'roadmap' && <Roadmap {...viewProps} />}
           {view.name === 'projects' && <Projects {...viewProps} />}
           {view.name === 'project' && <ProjectDetail {...viewProps} projectId={view.projectId} key={view.projectId} />}
