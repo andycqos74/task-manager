@@ -45,6 +45,11 @@ export function TaskRow({ task, onSelect, onChanged, onError, showProject = true
           {showProject && task.project_name && (
             <span className="badge project" style={{ '--c': task.project_color }}>{task.project_name}</span>
           )}
+          {task.story_title && (
+            <span className="badge dev" title={task.epic_title ? `${task.epic_title} › ${task.story_title}` : task.story_title}>
+              ⚙ {task.story_title}
+            </span>
+          )}
           {task.due_date && (
             <span className={`badge due ${overdue ? 'overdue' : ''}`}>due {formatDate(task.due_date)}</span>
           )}

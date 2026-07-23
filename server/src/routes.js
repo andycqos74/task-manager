@@ -9,6 +9,10 @@ export const router = Router();
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const TASK_STATUSES = ['todo', 'in_progress', 'done', 'cancelled'];
 const PROJECT_STATUSES = ['active', 'on_hold', 'completed', 'archived'];
+// Pipeline stages for the dev-tracking tiers (epics + user stories).
+const DEV_STATUSES = ['backlog', 'in_progress', 'in_review', 'done', 'deployed'];
+const IDEA_STATUSES = ['open', 'promoted', 'archived'];
+const DEV_TAG = 'development';
 
 function badRequest(res, message) {
   return res.status(400).json({ error: message });
@@ -60,8 +64,39 @@ function hydrateTasks(rows) {
   });
 }
 
-const TASK_SELECT = `SELECT t.*, p.name AS project_name, p.color AS project_color
-                     FROM tasks t LEFT JOIN projects p ON p.id = t.project_id`;
+const TASK_SELECT = `SELECT t.*, p.name AS project_name, p.color AS project_color,
+                     s.title AS story_title, s.epic_id AS epic_id, e.title AS epic_title
+                     FROM tasks t
+                     LEFT JOIN projects p ON p.id = t.project_id
+                     LEFT JOIN user_stories s ON s.id = t.story_id
+                     LEFT JOIN epics e ON e.id = s.epic_id`;
+
+// Resolve a story to its owning project (via its epic). Returns the row
+// { id, project_id } or null (story not found). Used when a task is linked
+// to a story so the task inherits the right project.
+function storyOwner(storyId) {
+  return db
+    .prepare('SELECT s.id, e.project_id FROM user_stories s JOIN epics e ON e.id = s.epic_id WHERE s.id = ?')
+    .get(storyId);
+}
+
+function getEpic(id) {
+  return db
+    .prepare(`SELECT e.*, p.name AS project_name, p.color AS project_color,
+        (SELECT COUNT(*) FROM user_stories s WHERE s.epic_id = e.id) AS story_count,
+        (SELECT COUNT(*) FROM tasks t JOIN user_stories s ON s.id = t.story_id WHERE s.epic_id = e.id) AS task_count
+      FROM epics e LEFT JOIN projects p ON p.id = e.project_id WHERE e.id = ?`)
+    .get(id);
+}
+
+function getStory(id) {
+  return db
+    .prepare(`SELECT s.*,
+        (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id) AS task_count,
+        (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id AND t.status = 'done') AS done_count
+      FROM user_stories s WHERE s.id = ?`)
+    .get(id);
+}
 
 function getTask(id) {
   const row = db.prepare(`${TASK_SELECT} WHERE t.id = ?`).get(id);
@@ -103,6 +138,7 @@ router.patch('/projects/:id', (req, res) => {
   const allowed = ['name', 'description', 'status', 'color', 'start_date', 'target_date'];
   const updates = {};
   for (const key of allowed) if (key in (req.body || {})) updates[key] = req.body[key];
+  if ('track_dev' in (req.body || {})) updates.track_dev = req.body.track_dev ? 1 : 0;
   if ('status' in updates && !PROJECT_STATUSES.includes(updates.status)) return badRequest(res, 'invalid status');
   for (const key of ['start_date', 'target_date'])
     if (key in updates && updates[key] != null && !isValidISODate(updates[key])) return badRequest(res, 'invalid date');
@@ -182,16 +218,30 @@ router.post('/tasks', (req, res) => {
   const tags = normaliseTags(b.tags) || [];
   const settings = getSettings();
 
+  // A task linked to a user story is a dev task: it inherits the story's
+  // project and gets the "development" tag so it stays findable in the
+  // ordinary task lists while being clearly separated.
+  let projectId = b.project_id || null;
+  let storyId = null;
+  if (b.story_id != null) {
+    const story = storyOwner(b.story_id);
+    if (!story) return badRequest(res, 'story not found');
+    storyId = story.id;
+    projectId = story.project_id;
+    if (!tags.includes(DEV_TAG)) tags.push(DEV_TAG);
+  }
+
   const dueDate = b.due_date || null;
   const manual = b.do_date != null;
   const doDate = manual ? b.do_date : computeDoDate(dueDate, b.estimated_minutes, settings.workday_minutes);
 
   const info = db
-    .prepare(`INSERT INTO tasks (project_id, title, notes, status, priority, due_date, do_date, do_date_is_manual,
+    .prepare(`INSERT INTO tasks (project_id, story_id, title, notes, status, priority, due_date, do_date, do_date_is_manual,
               estimated_minutes, my_day_date, tags, recurrence)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(
-      b.project_id || null,
+      projectId,
+      storyId,
       String(b.title).trim(),
       b.notes || '',
       b.status || 'todo',
@@ -266,6 +316,22 @@ router.patch('/tasks/:id', (req, res) => {
     const tags = normaliseTags(b.tags);
     if (!tags) return badRequest(res, 'tags must be an array');
     updates.tags = JSON.stringify(tags);
+  }
+
+  // Linking/unlinking a user story. Linking makes it a dev task: inherit the
+  // story's project (unless project_id was also passed explicitly) and add the
+  // "development" tag. Unlinking (story_id: null) just clears the link.
+  if ('story_id' in b) {
+    if (b.story_id == null) {
+      updates.story_id = null;
+    } else {
+      const story = storyOwner(b.story_id);
+      if (!story) return badRequest(res, 'story not found');
+      updates.story_id = story.id;
+      if (!('project_id' in updates)) updates.project_id = story.project_id;
+      const currentTags = 'tags' in updates ? JSON.parse(updates.tags) : task.tags;
+      if (!currentTags.includes(DEV_TAG)) updates.tags = JSON.stringify([...currentTags, DEV_TAG]);
+    }
   }
   if ('recurrence' in b) {
     const rec = validateRecurrence(b.recurrence);
@@ -643,6 +709,304 @@ router.delete('/notes/:id', (req, res) => {
   if (note.is_scratch) return badRequest(res, 'the scratch note cannot be deleted');
   db.prepare('DELETE FROM notes WHERE id = ?').run(note.id);
   res.json({ ok: true });
+});
+
+// ---------- development tracking: epics / stories / roadmap ----------
+
+// Epics
+router.get('/epics', (req, res) => {
+  const clauses = [];
+  const params = [];
+  if (req.query.project_id) {
+    clauses.push('e.project_id = ?');
+    params.push(Number(req.query.project_id));
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const rows = db
+    .prepare(`SELECT e.*, p.name AS project_name, p.color AS project_color,
+        (SELECT COUNT(*) FROM user_stories s WHERE s.epic_id = e.id) AS story_count,
+        (SELECT COUNT(*) FROM tasks t JOIN user_stories s ON s.id = t.story_id WHERE s.epic_id = e.id) AS task_count
+      FROM epics e LEFT JOIN projects p ON p.id = e.project_id ${where} ORDER BY e.sort_order, e.id`)
+    .all(...params);
+  res.json(rows);
+});
+
+router.post('/epics', (req, res) => {
+  const b = req.body || {};
+  if (!b.project_id) return badRequest(res, 'project_id is required');
+  if (!db.prepare('SELECT id FROM projects WHERE id = ?').get(b.project_id)) return badRequest(res, 'project not found');
+  if (!b.title || !String(b.title).trim()) return badRequest(res, 'title is required');
+  if (b.status && !DEV_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
+  for (const key of ['start_date', 'target_date'])
+    if (b[key] != null && !isValidISODate(b[key])) return badRequest(res, `invalid ${key}`);
+  const info = db
+    .prepare('INSERT INTO epics (project_id, title, description, status, start_date, target_date) VALUES (?,?,?,?,?,?)')
+    .run(b.project_id, String(b.title).trim(), b.description || '', b.status || 'backlog', b.start_date || null, b.target_date || null);
+  res.status(201).json(getEpic(info.lastInsertRowid));
+});
+
+router.patch('/epics/:id', (req, res) => {
+  const epic = db.prepare('SELECT * FROM epics WHERE id = ?').get(req.params.id);
+  if (!epic) return res.status(404).json({ error: 'epic not found' });
+  const b = req.body || {};
+  if ('status' in b && !DEV_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
+  for (const key of ['start_date', 'target_date'])
+    if (key in b && b[key] != null && !isValidISODate(b[key])) return badRequest(res, `invalid ${key}`);
+  if ('title' in b && !String(b.title).trim()) return badRequest(res, 'title cannot be empty');
+  const updates = {};
+  for (const key of ['title', 'description', 'status', 'start_date', 'target_date', 'sort_order']) if (key in b) updates[key] = b[key];
+  if ('title' in updates) updates.title = String(updates.title).trim();
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  if (sets) {
+    db.prepare(`UPDATE epics SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(...Object.values(updates), epic.id);
+  }
+  res.json(getEpic(epic.id));
+});
+
+router.delete('/epics/:id', (req, res) => {
+  const epic = db.prepare('SELECT * FROM epics WHERE id = ?').get(req.params.id);
+  if (!epic) return res.status(404).json({ error: 'epic not found' });
+  db.prepare('DELETE FROM epics WHERE id = ?').run(epic.id); // cascades to stories; tasks.story_id -> null
+  res.json({ ok: true });
+});
+
+// User stories
+router.get('/stories', (req, res) => {
+  const clauses = [];
+  const params = [];
+  if (req.query.epic_id) {
+    clauses.push('s.epic_id = ?');
+    params.push(Number(req.query.epic_id));
+  } else if (req.query.project_id) {
+    clauses.push('e.project_id = ?');
+    params.push(Number(req.query.project_id));
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const rows = db
+    .prepare(`SELECT s.*,
+        (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id) AS task_count,
+        (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id AND t.status = 'done') AS done_count
+      FROM user_stories s JOIN epics e ON e.id = s.epic_id ${where} ORDER BY s.sort_order, s.id`)
+    .all(...params);
+  res.json(rows);
+});
+
+router.post('/stories', (req, res) => {
+  const b = req.body || {};
+  if (!b.epic_id) return badRequest(res, 'epic_id is required');
+  if (!db.prepare('SELECT id FROM epics WHERE id = ?').get(b.epic_id)) return badRequest(res, 'epic not found');
+  if (!b.title || !String(b.title).trim()) return badRequest(res, 'title is required');
+  if (b.status && !DEV_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
+  if (b.due_date != null && !isValidISODate(b.due_date)) return badRequest(res, 'invalid due_date');
+  const info = db
+    .prepare('INSERT INTO user_stories (epic_id, title, description, status, due_date) VALUES (?,?,?,?,?)')
+    .run(b.epic_id, String(b.title).trim(), b.description || '', b.status || 'backlog', b.due_date || null);
+  res.status(201).json(getStory(info.lastInsertRowid));
+});
+
+router.patch('/stories/:id', (req, res) => {
+  const story = db.prepare('SELECT * FROM user_stories WHERE id = ?').get(req.params.id);
+  if (!story) return res.status(404).json({ error: 'story not found' });
+  const b = req.body || {};
+  if ('status' in b && !DEV_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
+  if ('due_date' in b && b.due_date != null && !isValidISODate(b.due_date)) return badRequest(res, 'invalid due_date');
+  if ('title' in b && !String(b.title).trim()) return badRequest(res, 'title cannot be empty');
+  if ('epic_id' in b && !db.prepare('SELECT id FROM epics WHERE id = ?').get(b.epic_id)) return badRequest(res, 'epic not found');
+  const updates = {};
+  for (const key of ['title', 'description', 'status', 'due_date', 'sort_order', 'epic_id']) if (key in b) updates[key] = b[key];
+  if ('title' in updates) updates.title = String(updates.title).trim();
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  if (sets) {
+    db.prepare(`UPDATE user_stories SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(...Object.values(updates), story.id);
+  }
+  res.json(getStory(story.id));
+});
+
+router.delete('/stories/:id', (req, res) => {
+  const story = db.prepare('SELECT * FROM user_stories WHERE id = ?').get(req.params.id);
+  if (!story) return res.status(404).json({ error: 'story not found' });
+  db.prepare('DELETE FROM user_stories WHERE id = ?').run(story.id); // tasks.story_id -> null
+  res.json({ ok: true });
+});
+
+// Full dev tree for a project's Development tab.
+router.get('/projects/:id/dev', (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'project not found' });
+  const epics = db.prepare('SELECT * FROM epics WHERE project_id = ? ORDER BY sort_order, id').all(project.id);
+  const stories = db
+    .prepare('SELECT * FROM user_stories WHERE epic_id IN (SELECT id FROM epics WHERE project_id = ?) ORDER BY sort_order, id')
+    .all(project.id);
+  const taskRows = db
+    .prepare(`${TASK_SELECT} WHERE t.story_id IN
+        (SELECT s.id FROM user_stories s JOIN epics e ON e.id = s.epic_id WHERE e.project_id = ?) ORDER BY t.id`)
+    .all(project.id);
+  const tasks = hydrateTasks(taskRows);
+
+  const storyById = new Map(stories.map((s) => [s.id, { ...s, tasks: [] }]));
+  for (const t of tasks) storyById.get(t.story_id)?.tasks.push(t);
+  const epicById = new Map(epics.map((e) => [e.id, { ...e, stories: [] }]));
+  for (const s of storyById.values()) epicById.get(s.epic_id)?.stories.push(s);
+  res.json({ project, epics: [...epicById.values()] });
+});
+
+// Roadmap: epic-level timeline across dev-enabled projects (shaped like /gantt).
+router.get('/roadmap', (req, res) => {
+  const rows = db
+    .prepare(`SELECT e.*, p.name AS project_name, p.color AS project_color
+      FROM epics e JOIN projects p ON p.id = e.project_id
+      WHERE p.track_dev = 1 ORDER BY e.project_id, e.start_date, e.target_date`)
+    .all();
+  const epics = rows
+    .filter((e) => e.start_date || e.target_date)
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      project_id: e.project_id,
+      project_name: e.project_name,
+      project_color: e.project_color,
+      status: e.status,
+      start: e.start_date || e.target_date,
+      end: e.target_date || e.start_date,
+    }));
+  const projects = db.prepare('SELECT * FROM projects WHERE track_dev = 1 ORDER BY name').all();
+  res.json({ today: todayISO(), projects, epics });
+});
+
+// ---------- ideas backlog ----------
+
+router.get('/ideas', (req, res) => {
+  const clauses = [];
+  const params = [];
+  if (req.query.status) {
+    clauses.push('i.status = ?');
+    params.push(req.query.status);
+  }
+  if (req.query.project_id === 'none') {
+    clauses.push('i.project_id IS NULL');
+  } else if (req.query.project_id) {
+    clauses.push('i.project_id = ?');
+    params.push(Number(req.query.project_id));
+  }
+  if (req.query.q) {
+    clauses.push('(i.title LIKE ? OR i.description LIKE ?)');
+    const like = `%${req.query.q}%`;
+    params.push(like, like);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const rows = db
+    .prepare(`SELECT i.*, p.name AS project_name, p.color AS project_color
+      FROM ideas i LEFT JOIN projects p ON p.id = i.project_id ${where}
+      ORDER BY i.created_at DESC, i.id DESC`)
+    .all(...params);
+  res.json(rows);
+});
+
+function getIdea(id) {
+  return db
+    .prepare('SELECT i.*, p.name AS project_name, p.color AS project_color FROM ideas i LEFT JOIN projects p ON p.id = i.project_id WHERE i.id = ?')
+    .get(id);
+}
+
+router.post('/ideas', (req, res) => {
+  const b = req.body || {};
+  if (!b.title || !String(b.title).trim()) return badRequest(res, 'title is required');
+  if (b.status && !IDEA_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
+  if (b.project_id != null && !db.prepare('SELECT id FROM projects WHERE id = ?').get(b.project_id)) return badRequest(res, 'project not found');
+  const info = db
+    .prepare('INSERT INTO ideas (title, description, project_id, status) VALUES (?,?,?,?)')
+    .run(String(b.title).trim(), b.description || '', b.project_id || null, b.status || 'open');
+  res.status(201).json(getIdea(info.lastInsertRowid));
+});
+
+router.patch('/ideas/:id', (req, res) => {
+  const idea = db.prepare('SELECT * FROM ideas WHERE id = ?').get(req.params.id);
+  if (!idea) return res.status(404).json({ error: 'idea not found' });
+  const b = req.body || {};
+  if ('status' in b && !IDEA_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
+  if ('title' in b && !String(b.title).trim()) return badRequest(res, 'title cannot be empty');
+  if ('project_id' in b && b.project_id != null && !db.prepare('SELECT id FROM projects WHERE id = ?').get(b.project_id)) return badRequest(res, 'project not found');
+  const updates = {};
+  for (const key of ['title', 'description', 'status', 'project_id']) if (key in b) updates[key] = b[key];
+  if ('title' in updates) updates.title = String(updates.title).trim();
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  if (sets) {
+    db.prepare(`UPDATE ideas SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(...Object.values(updates), idea.id);
+  }
+  res.json(getIdea(idea.id));
+});
+
+router.delete('/ideas/:id', (req, res) => {
+  const idea = db.prepare('SELECT * FROM ideas WHERE id = ?').get(req.params.id);
+  if (!idea) return res.status(404).json({ error: 'idea not found' });
+  db.prepare('DELETE FROM ideas WHERE id = ?').run(idea.id);
+  res.json({ ok: true });
+});
+
+// Promote an idea into the dev hierarchy (epic / story / task), marking the
+// idea as promoted. The idea's title/description seed the new entity.
+router.post('/ideas/:id/promote', (req, res) => {
+  const idea = db.prepare('SELECT * FROM ideas WHERE id = ?').get(req.params.id);
+  if (!idea) return res.status(404).json({ error: 'idea not found' });
+  const b = req.body || {};
+  const level = b.level;
+  if (!['epic', 'story', 'task'].includes(level)) return badRequest(res, 'level must be epic, story or task');
+  const markPromoted = () => db.prepare(`UPDATE ideas SET status = 'promoted', updated_at = datetime('now') WHERE id = ?`).run(idea.id);
+
+  if (level === 'epic') {
+    const projectId = b.project_id || idea.project_id;
+    if (!projectId) return badRequest(res, 'project_id is required to promote to an epic');
+    if (!db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId)) return badRequest(res, 'project not found');
+    const epic = db.transaction(() => {
+      const info = db.prepare('INSERT INTO epics (project_id, title, description) VALUES (?,?,?)').run(projectId, idea.title, idea.description);
+      markPromoted();
+      return getEpic(info.lastInsertRowid);
+    })();
+    return res.status(201).json({ level, epic });
+  }
+  if (level === 'story') {
+    if (!b.epic_id) return badRequest(res, 'epic_id is required to promote to a story');
+    if (!db.prepare('SELECT id FROM epics WHERE id = ?').get(b.epic_id)) return badRequest(res, 'epic not found');
+    const story = db.transaction(() => {
+      const info = db.prepare('INSERT INTO user_stories (epic_id, title, description) VALUES (?,?,?)').run(b.epic_id, idea.title, idea.description);
+      markPromoted();
+      return getStory(info.lastInsertRowid);
+    })();
+    return res.status(201).json({ level, story });
+  }
+  // task
+  let projectId = b.project_id || idea.project_id || null;
+  let storyId = null;
+  const tags = [];
+  if (b.story_id != null) {
+    const story = storyOwner(b.story_id);
+    if (!story) return badRequest(res, 'story not found');
+    storyId = story.id;
+    projectId = story.project_id;
+    tags.push(DEV_TAG);
+  }
+  const task = db.transaction(() => {
+    const info = db
+      .prepare('INSERT INTO tasks (project_id, story_id, title, notes, tags) VALUES (?,?,?,?,?)')
+      .run(projectId, storyId, idea.title, idea.description, JSON.stringify(tags));
+    markPromoted();
+    return getTask(info.lastInsertRowid);
+  })();
+  return res.status(201).json({ level, task });
+});
+
+// Convert an existing task into an idea (move: the task is removed).
+router.post('/tasks/:id/convert-to-idea', (req, res) => {
+  const task = getTask(req.params.id);
+  if (!task) return res.status(404).json({ error: 'task not found' });
+  const idea = db.transaction(() => {
+    const info = db
+      .prepare('INSERT INTO ideas (title, description, project_id) VALUES (?,?,?)')
+      .run(task.title, task.notes || '', task.project_id || null);
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(task.id);
+    return getIdea(info.lastInsertRowid);
+  })();
+  res.status(201).json(idea);
 });
 
 // ---------- tags / settings / ai ----------

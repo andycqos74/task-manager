@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS projects (
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','on_hold','completed','archived')),
   color TEXT NOT NULL DEFAULT '#5b7c99',
+  track_dev INTEGER NOT NULL DEFAULT 0,
   start_date TEXT,
   target_date TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  story_id INTEGER REFERENCES user_stories(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','done','cancelled')),
@@ -74,12 +76,52 @@ CREATE TABLE IF NOT EXISTS notes (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Development planning tiers: project -> epic -> user story -> task (task.story_id).
+CREATE TABLE IF NOT EXISTS epics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'backlog' CHECK (status IN ('backlog','in_progress','in_review','done','deployed')),
+  start_date TEXT,
+  target_date TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS user_stories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  epic_id INTEGER NOT NULL REFERENCES epics(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'backlog' CHECK (status IN ('backlog','in_progress','in_review','done','deployed')),
+  due_date TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Ideas backlog: a separate capture pool, promotable into the dev hierarchy.
+CREATE TABLE IF NOT EXISTS ideas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','promoted','archived')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_do_date ON tasks(do_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
 CREATE INDEX IF NOT EXISTS idx_notes_task ON notes(task_id);
+CREATE INDEX IF NOT EXISTS idx_epics_project ON epics(project_id);
+CREATE INDEX IF NOT EXISTS idx_stories_epic ON user_stories(epic_id);
+CREATE INDEX IF NOT EXISTS idx_ideas_project ON ideas(project_id);
 `);
 
 // Lightweight migration: add a column to an existing table if it's missing.
@@ -89,6 +131,11 @@ function ensureColumn(table, column, ddl) {
   if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
 }
 ensureColumn('notes', 'blocks', "blocks TEXT NOT NULL DEFAULT '[]'");
+// Development-tracking additions (retrofit for pre-existing databases).
+ensureColumn('projects', 'track_dev', 'track_dev INTEGER NOT NULL DEFAULT 0');
+ensureColumn('tasks', 'story_id', 'story_id INTEGER REFERENCES user_stories(id) ON DELETE SET NULL');
+// Index on tasks.story_id created after the column is guaranteed to exist.
+db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_story ON tasks(story_id);');
 
 const DEFAULT_SETTINGS = {
   workday_minutes: '480',

@@ -248,16 +248,22 @@ export default function Notepad({ projects, context, refresh, onError }) {
     setTimeout(() => setFlash(''), 4000);
   }
 
-  // Turn the focused block's selection (or, with nothing selected, the
-  // whole note) into a task: first line becomes the title, the rest goes
-  // into the task's Notes field.
-  async function lineToTask() {
+  // Extract the focused block's selection (or, with nothing selected, the
+  // whole note) as trimmed non-empty lines. First line = title, rest = body.
+  function focusedLines(action) {
     const ta = activeRef.current;
-    if (!ta || !ta.isConnected) { flashMsg('Click into a note first, then “→ Task”.'); return; }
+    if (!ta || !ta.isConnected) { flashMsg(`Click into a note first, then “${action}”.`); return null; }
     const value = ta.value || '';
     const chosen = ta.selectionStart !== ta.selectionEnd ? value.slice(ta.selectionStart, ta.selectionEnd) : value;
     const lines = chosen.split('\n').map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) { flashMsg('Put the cursor on a line, or select text, first.'); return; }
+    if (!lines.length) { flashMsg('Put the cursor on a line, or select text, first.'); return null; }
+    return lines;
+  }
+
+  // Turn the focused block into a task (title + notes).
+  async function lineToTask() {
+    const lines = focusedLines('→ Task');
+    if (!lines) return;
     try {
       const task = await api.post('/tasks', {
         title: lines[0],
@@ -266,6 +272,23 @@ export default function Notepad({ projects, context, refresh, onError }) {
       });
       refresh?.();
       flashMsg(`Created task: “${task.title}”`);
+    } catch (err) {
+      onError(err);
+    }
+  }
+
+  // Turn the focused block into a backlog idea (title + description).
+  async function lineToIdea() {
+    const lines = focusedLines('→ Idea');
+    if (!lines) return;
+    try {
+      const idea = await api.post('/ideas', {
+        title: lines[0],
+        description: lines.slice(1).join('\n'),
+        project_id: note.project_id || context?.projectId || null,
+      });
+      refresh?.();
+      flashMsg(`Added idea: “${idea.title}”`);
     } catch (err) {
       onError(err);
     }
@@ -329,6 +352,9 @@ export default function Notepad({ projects, context, refresh, onError }) {
             </select>
             <button className="to-task-btn" onClick={lineToTask} title="Turn the current line or selection into a task">
               → Task
+            </button>
+            <button className="to-idea-btn" onClick={lineToIdea} title="Turn the current line or selection into a backlog idea">
+              → Idea
             </button>
             {!note.is_scratch && <button className="link" onClick={deleteNote}>delete</button>}
             <span className="notepad-status">{saving ? 'saving…' : flash || 'saved'}</span>

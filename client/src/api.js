@@ -108,6 +108,17 @@ export function sortTasks(tasks, sort) {
   }
 }
 
+// Dev-tracking pipeline stages for epics + user stories, with display labels
+// and a CSS token driving the status badge color (see styles.css .dev-badge.*).
+export const DEV_STATUSES = [
+  ['backlog', 'Backlog'],
+  ['in_progress', 'In progress'],
+  ['in_review', 'In review'],
+  ['done', 'Done'],
+  ['deployed', 'Deployed'],
+];
+export const DEV_STATUS_LABEL = Object.fromEntries(DEV_STATUSES);
+
 export function todayISO() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

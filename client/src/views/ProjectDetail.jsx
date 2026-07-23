@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import QuickAdd from '../components/QuickAdd.jsx';
 import TaskList from '../components/TaskList.jsx';
+import DevTracker from '../components/DevTracker.jsx';
 
 export default function ProjectDetail({ projectId, refreshKey, refresh, onSelectTask, onError, setView }) {
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [showDone, setShowDone] = useState(false);
+  const [tab, setTab] = useState('tasks');
 
   useEffect(() => {
     api.get('/projects').then((all) => {
@@ -18,6 +20,7 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
   }, [refreshKey, projectId, showDone]);
 
   if (!project) return <div className="empty">Loading…</div>;
+  const devTab = project.track_dev && tab === 'dev';
 
   async function patch(body) {
     try {
@@ -73,19 +76,37 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
         <input type="date" value={project.start_date || ''} onChange={(e) => patch({ start_date: e.target.value || null })} />
         <label>Target date</label>
         <input type="date" value={project.target_date || ''} onChange={(e) => patch({ target_date: e.target.value || null })} />
-      </div>
-
-      <div className="filters">
-        <span className="subtitle">{project.done_tasks}/{project.total_tasks} tasks done</span>
+        <label>Track development</label>
         <label className="inline">
-          <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> show done
+          <input type="checkbox" checked={!!project.track_dev} onChange={(e) => patch({ track_dev: e.target.checked })} />
+          <span className="hint">Enable epics, user stories and a roadmap for this project</span>
         </label>
       </div>
 
-      <QuickAdd defaults={{ project_id: project.id }} onCreated={refresh} onError={onError}
-        placeholder={`Add a task to ${project.name}`} />
-      <TaskList tasks={tasks} showProject={false} empty="No tasks in this project yet."
-        onSelect={onSelectTask} onChanged={refresh} onError={onError} />
+      {project.track_dev && (
+        <div className="tabs">
+          <button className={`tab ${tab === 'tasks' ? 'active' : ''}`} onClick={() => setTab('tasks')}>Tasks</button>
+          <button className={`tab ${tab === 'dev' ? 'active' : ''}`} onClick={() => setTab('dev')}>Development</button>
+        </div>
+      )}
+
+      {devTab ? (
+        <DevTracker projectId={project.id} refreshKey={refreshKey} refresh={refresh} onSelectTask={onSelectTask} onError={onError} />
+      ) : (
+        <>
+          <div className="filters">
+            <span className="subtitle">{project.done_tasks}/{project.total_tasks} tasks done</span>
+            <label className="inline">
+              <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> show done
+            </label>
+          </div>
+
+          <QuickAdd defaults={{ project_id: project.id }} onCreated={refresh} onError={onError}
+            placeholder={`Add a task to ${project.name}`} />
+          <TaskList tasks={tasks} showProject={false} empty="No tasks in this project yet."
+            onSelect={onSelectTask} onChanged={refresh} onError={onError} />
+        </>
+      )}
     </div>
   );
 }
