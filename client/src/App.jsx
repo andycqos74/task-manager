@@ -9,10 +9,11 @@ import ProjectDetail from './views/ProjectDetail.jsx';
 import Gantt from './views/Gantt.jsx';
 import Backlog from './views/Backlog.jsx';
 import Roadmap from './views/Roadmap.jsx';
+import Kanban from './views/Kanban.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
-import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon } from './icons.jsx';
+import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon, ColumnsIcon } from './icons.jsx';
 import impMark from './assets/imp-cut.png';
 
 const NAV = [
@@ -27,6 +28,7 @@ const NAV = [
 const DEV_NAV = [
   { key: 'backlog', label: 'Backlog', Icon: LightbulbIcon },
   { key: 'bugs', label: 'Bugs', Icon: BugIcon },
+  { key: 'kanban', label: 'Boards', Icon: ColumnsIcon },
   { key: 'roadmap', label: 'Roadmap', Icon: MapIcon },
 ];
 
@@ -227,6 +229,7 @@ export default function App() {
           {view.name === 'gantt' && <Gantt {...viewProps} />}
           {view.name === 'backlog' && <Backlog kind="idea" key="backlog" {...viewProps} />}
           {view.name === 'bugs' && <Backlog kind="bug" key="bugs" {...viewProps} />}
+          {view.name === 'kanban' && <Kanban {...viewProps} />}
           {view.name === 'roadmap' && <Roadmap {...viewProps} />}
           {view.name === 'projects' && <Projects {...viewProps} />}
           {view.name === 'project' && <ProjectDetail {...viewProps} projectId={view.projectId} key={view.projectId} />}
