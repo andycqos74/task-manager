@@ -485,6 +485,77 @@ button.danger:hover { background: var(--danger-light); }
 .idea-actions { display: flex; gap: 12px; }
 .quick-add-project { border: none; background: var(--badge-bg); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; font-family: inherit; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
 
+/* ---------- kanban boards ---------- */
+.level-toggle { display: flex; gap: 4px; }
+.level-btn {
+  border: 1px solid var(--card-border); background: #fff; color: var(--text-secondary);
+  border-radius: 8px; padding: 7px 11px; font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.level-btn:hover { color: var(--text-primary); }
+.level-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.kanban-swimlane { margin-bottom: 18px; }
+.swimlane-head {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+  font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);
+}
+.kanban-board { display: flex; gap: 12px; overflow-x: auto; align-items: flex-start; padding-bottom: 6px; }
+.kanban-col {
+  flex: 0 0 264px; background: oklch(97% 0.005 265); border: 1px solid var(--card-border);
+  border-radius: 13px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 120px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.kanban-col.drag-over { background: var(--accent-light); border-color: var(--accent); }
+.kanban-col.collapsed { flex-basis: 52px; min-height: 0; }
+.kanban-col.collapsed .kanban-col-head { flex-direction: column; gap: 6px; }
+.kanban-col.collapsed .col-name { writing-mode: vertical-rl; font-size: 12px; }
+.kanban-col-head { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 13px; color: var(--text-primary); }
+.col-collapse { border: none; background: transparent; color: var(--text-muted); font-size: 11px; padding: 0 2px; cursor: pointer; flex-shrink: 0; }
+.col-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kanban-col-head .count { background: var(--badge-bg); border-radius: 9px; padding: 1px 7px; font-size: 11px; color: var(--text-secondary); }
+.kanban-cards { display: flex; flex-direction: column; gap: 7px; min-height: 36px; }
+.kanban-empty { font-size: 11.5px; color: var(--text-muted); text-align: center; padding: 10px 0; border: 1px dashed var(--card-border); border-radius: 9px; }
+
+.kanban-card {
+  background: #fff; border: 1px solid var(--card-border); border-left: 3px solid var(--text-muted);
+  border-radius: 10px; padding: 9px 11px; cursor: grab; display: flex; flex-direction: column; gap: 5px;
+  box-shadow: 0 1px 2px oklch(20% 0.02 265 / 0.04);
+}
+.kanban-card:hover { box-shadow: 0 3px 10px oklch(20% 0.02 265 / 0.09); }
+.kanban-card.dragging { opacity: 0.45; cursor: grabbing; }
+.kanban-card.level-epic { border-left-color: var(--accent); }
+.kanban-card.level-story { border-left-color: var(--ai); }
+.kanban-card.level-task { border-left-color: var(--success); }
+.kanban-card-top { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.kanban-card-title { font-size: 13.5px; font-weight: 650; color: var(--text-primary); }
+.kanban-card-parent { font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kanban-card-meta { display: flex; gap: 5px; flex-wrap: wrap; }
+.badge.level { font-weight: 800; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.05em; }
+.badge.level.level-epic { background: var(--accent-light); color: var(--accent-dark); }
+.badge.level.level-story { background: var(--ai-light); color: var(--ai); }
+.badge.level.level-task { background: var(--success-light); color: var(--success); }
+
+.col-add { border: none; background: transparent; color: var(--text-muted); font-size: 12.5px; font-weight: 700; padding: 5px; border-radius: 8px; text-align: left; cursor: pointer; }
+.col-add:hover { background: var(--badge-bg); color: var(--text-primary); }
+.col-add-form { display: flex; flex-direction: column; gap: 6px; }
+.col-add-form input, .col-add-form select {
+  width: 100%; padding: 6px 9px; border: 1px solid var(--card-border); border-radius: 8px;
+  font-size: 12.5px; font-family: inherit; color: var(--text-primary); background: #fff;
+}
+.col-add-actions { display: flex; align-items: center; gap: 8px; }
+.col-add-actions .ai-action-btn { padding: 6px 12px; font-size: 12.5px; }
+
+/* Board configuration panel */
+.board-config .col-config-list { display: flex; flex-direction: column; gap: 6px; }
+.col-config-row { display: flex; align-items: center; gap: 6px; }
+.col-config-row input { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--text-primary); }
+.col-config-row select { padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 12.5px; font-family: inherit; color: var(--text-primary); background: #fff; }
+.col-config-row .link:disabled { opacity: 0.3; cursor: default; }
+.col-config-row .active-board { color: var(--accent-dark); font-weight: 800; }
+.col-config-add { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.col-config-add input { flex: 1; min-width: 120px; padding: 6px 9px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--text-primary); }
+.col-config-add select { padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 12.5px; font-family: inherit; color: var(--text-primary); background: #fff; }
+
 /* Notepad → Idea / → Bug buttons (mirror → Task) */
 .notepad-bar .to-idea-btn, .notepad-bar .to-bug-btn {
   background: var(--sidebar-chip-bg); color: var(--sidebar-text); border: 1px solid var(--sidebar-chip-border);

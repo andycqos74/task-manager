@@ -13,6 +13,21 @@ const PROJECT_STATUSES = ['active', 'on_hold', 'completed', 'archived'];
 const DEV_STATUSES = ['backlog', 'in_progress', 'in_review', 'done', 'deployed'];
 const IDEA_STATUSES = ['open', 'promoted', 'archived'];
 const IDEA_KINDS = ['idea', 'bug'];
+const CARD_TYPES = ['epic', 'story', 'task'];
+
+// Tasks carry both a `status` (todo/in_progress/done/cancelled, used by My Day,
+// scoring and the task lists) and a finer-grained kanban `dev_stage`. These keep
+// the two consistent whichever one the user changes.
+function statusFromStage(stage) {
+  if (stage === 'done' || stage === 'deployed') return 'done';
+  if (stage === 'in_progress' || stage === 'in_review') return 'in_progress';
+  return 'todo';
+}
+function stageFromStatus(status) {
+  if (status === 'done') return 'done';
+  if (status === 'in_progress') return 'in_progress';
+  return 'backlog';
+}
 const DEV_TAG = 'development';
 
 function badRequest(res, message) {
@@ -305,6 +320,7 @@ router.patch('/tasks/:id', (req, res) => {
 
   if ('priority' in b && !PRIORITIES.includes(b.priority)) return badRequest(res, 'invalid priority');
   if ('status' in b && !TASK_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
+  if ('dev_stage' in b && !DEV_STATUSES.includes(b.dev_stage)) return badRequest(res, 'invalid dev_stage');
   for (const key of ['due_date', 'do_date'])
     if (key in b && b[key] != null && !isValidISODate(b[key])) return badRequest(res, `invalid ${key}`);
   if ('title' in b && !String(b.title).trim()) return badRequest(res, 'title cannot be empty');
@@ -312,6 +328,22 @@ router.patch('/tasks/:id', (req, res) => {
   const updates = {};
   for (const key of ['title', 'notes', 'status', 'priority', 'project_id']) if (key in b) updates[key] = b[key];
   if ('title' in updates) updates.title = String(updates.title).trim();
+  if ('sort_order' in b && Number.isFinite(+b.sort_order)) updates.sort_order = Math.trunc(+b.sort_order);
+
+  // Keep dev_stage and status in step. An explicit value for one derives the
+  // other, unless the caller set both. 'cancelled' is never inferred away.
+  if ('dev_stage' in b) {
+    updates.dev_stage = b.dev_stage;
+    if (!('status' in b) && task.status !== 'cancelled') {
+      const derived = statusFromStage(b.dev_stage);
+      if (derived !== task.status) updates.status = derived;
+    }
+  } else if ('status' in b && b.status !== 'cancelled') {
+    const derived = stageFromStatus(b.status);
+    // Preserve the finer stage when it already agrees with the new status
+    // (e.g. in_review stays in_review when status stays in_progress).
+    if (statusFromStage(task.dev_stage) !== b.status) updates.dev_stage = derived;
+  }
 
   if ('tags' in b) {
     const tags = normaliseTags(b.tags);
@@ -1016,6 +1048,197 @@ function convertTaskToBacklog(req, res, kind) {
 }
 router.post('/tasks/:id/convert-to-idea', (req, res) => convertTaskToBacklog(req, res, 'idea'));
 router.post('/tasks/:id/convert-to-bug', (req, res) => convertTaskToBacklog(req, res, 'bug'));
+
+// ---------- kanban boards ----------
+
+const DEFAULT_COLUMNS = [
+  ['Backlog', 'backlog'], ['In Progress', 'in_progress'], ['In Review', 'in_review'],
+  ['Done', 'done'], ['Deployed', 'deployed'],
+];
+
+function boardColumns(boardId) {
+  return db.prepare('SELECT * FROM board_columns WHERE board_id = ? ORDER BY sort_order, id').all(boardId);
+}
+function getBoard(id) {
+  const board = db.prepare('SELECT * FROM boards WHERE id = ?').get(id);
+  return board ? { ...board, columns: boardColumns(board.id) } : null;
+}
+
+router.get('/boards', (req, res) => {
+  const boards = db.prepare('SELECT * FROM boards ORDER BY sort_order, id').all();
+  res.json(boards.map((b) => ({ ...b, columns: boardColumns(b.id) })));
+});
+
+router.post('/boards', (req, res) => {
+  const b = req.body || {};
+  if (!b.name || !String(b.name).trim()) return badRequest(res, 'name is required');
+  const board = db.transaction(() => {
+    const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM boards').get().m;
+    const id = db.prepare('INSERT INTO boards (name, sort_order) VALUES (?,?)').run(String(b.name).trim(), max + 1).lastInsertRowid;
+    const addCol = db.prepare('INSERT INTO board_columns (board_id, name, stage, sort_order) VALUES (?,?,?,?)');
+    DEFAULT_COLUMNS.forEach(([name, stage], i) => addCol.run(id, name, stage, i));
+    return getBoard(id);
+  })();
+  res.status(201).json(board);
+});
+
+router.patch('/boards/:id', (req, res) => {
+  const board = db.prepare('SELECT * FROM boards WHERE id = ?').get(req.params.id);
+  if (!board) return res.status(404).json({ error: 'board not found' });
+  const b = req.body || {};
+  if ('name' in b && !String(b.name).trim()) return badRequest(res, 'name cannot be empty');
+  const updates = {};
+  if ('name' in b) updates.name = String(b.name).trim();
+  if ('sort_order' in b && Number.isFinite(+b.sort_order)) updates.sort_order = Math.trunc(+b.sort_order);
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  if (sets) db.prepare(`UPDATE boards SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(...Object.values(updates), board.id);
+  res.json(getBoard(board.id));
+});
+
+router.delete('/boards/:id', (req, res) => {
+  const board = db.prepare('SELECT * FROM boards WHERE id = ?').get(req.params.id);
+  if (!board) return res.status(404).json({ error: 'board not found' });
+  db.prepare('DELETE FROM boards WHERE id = ?').run(board.id); // cascades to columns
+  res.json({ ok: true });
+});
+
+router.post('/boards/:id/columns', (req, res) => {
+  const board = db.prepare('SELECT * FROM boards WHERE id = ?').get(req.params.id);
+  if (!board) return res.status(404).json({ error: 'board not found' });
+  const b = req.body || {};
+  if (!b.name || !String(b.name).trim()) return badRequest(res, 'name is required');
+  if (!DEV_STATUSES.includes(b.stage)) return badRequest(res, 'invalid stage');
+  const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM board_columns WHERE board_id = ?').get(board.id).m;
+  db.prepare('INSERT INTO board_columns (board_id, name, stage, sort_order) VALUES (?,?,?,?)')
+    .run(board.id, String(b.name).trim(), b.stage, max + 1);
+  res.status(201).json(getBoard(board.id));
+});
+
+router.patch('/board-columns/:id', (req, res) => {
+  const col = db.prepare('SELECT * FROM board_columns WHERE id = ?').get(req.params.id);
+  if (!col) return res.status(404).json({ error: 'column not found' });
+  const b = req.body || {};
+  if ('stage' in b && !DEV_STATUSES.includes(b.stage)) return badRequest(res, 'invalid stage');
+  if ('name' in b && !String(b.name).trim()) return badRequest(res, 'name cannot be empty');
+  const updates = {};
+  if ('name' in b) updates.name = String(b.name).trim();
+  if ('stage' in b) updates.stage = b.stage;
+  if ('sort_order' in b && Number.isFinite(+b.sort_order)) updates.sort_order = Math.trunc(+b.sort_order);
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  if (sets) db.prepare(`UPDATE board_columns SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(...Object.values(updates), col.id);
+  res.json(getBoard(col.board_id));
+});
+
+router.delete('/board-columns/:id', (req, res) => {
+  const col = db.prepare('SELECT * FROM board_columns WHERE id = ?').get(req.params.id);
+  if (!col) return res.status(404).json({ error: 'column not found' });
+  db.prepare('DELETE FROM board_columns WHERE id = ?').run(col.id);
+  res.json(getBoard(col.board_id));
+});
+
+// Unified card feed for a board: epics, stories and tasks in one normalised
+// shape. Cross-project by default; `levels`, `project_id` and `q` narrow it.
+router.get('/boards/:id/cards', (req, res) => {
+  const board = getBoard(req.params.id);
+  if (!board) return res.status(404).json({ error: 'board not found' });
+
+  const levels = req.query.levels
+    ? String(req.query.levels).split(',').map((s) => s.trim()).filter((s) => CARD_TYPES.includes(s))
+    : CARD_TYPES;
+  const projectId = req.query.project_id ? Number(req.query.project_id) : null;
+  const q = req.query.q ? `%${req.query.q}%` : null;
+  const cards = [];
+
+  if (levels.includes('epic')) {
+    const where = ['1=1'];
+    const params = [];
+    if (projectId) { where.push('e.project_id = ?'); params.push(projectId); }
+    if (q) { where.push('(e.title LIKE ? OR e.description LIKE ?)'); params.push(q, q); }
+    for (const e of db.prepare(`SELECT e.*, p.name AS project_name, p.color AS project_color,
+        (SELECT COUNT(*) FROM user_stories s WHERE s.epic_id = e.id) AS story_count
+        FROM epics e LEFT JOIN projects p ON p.id = e.project_id
+        WHERE ${where.join(' AND ')} ORDER BY e.sort_order, e.id`).all(...params)) {
+      cards.push({
+        type: 'epic', id: e.id, title: e.title, stage: e.status, sort_order: e.sort_order,
+        project_id: e.project_id, project_name: e.project_name, project_color: e.project_color,
+        epic_id: e.id, parent_title: null, target_date: e.target_date, child_count: e.story_count,
+      });
+    }
+  }
+
+  if (levels.includes('story')) {
+    const where = ['1=1'];
+    const params = [];
+    if (projectId) { where.push('e.project_id = ?'); params.push(projectId); }
+    if (q) { where.push('(s.title LIKE ? OR s.description LIKE ?)'); params.push(q, q); }
+    for (const s of db.prepare(`SELECT s.*, e.title AS epic_title, e.project_id AS project_id,
+        p.name AS project_name, p.color AS project_color,
+        (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id) AS task_count
+        FROM user_stories s JOIN epics e ON e.id = s.epic_id LEFT JOIN projects p ON p.id = e.project_id
+        WHERE ${where.join(' AND ')} ORDER BY s.sort_order, s.id`).all(...params)) {
+      cards.push({
+        type: 'story', id: s.id, title: s.title, stage: s.status, sort_order: s.sort_order,
+        project_id: s.project_id, project_name: s.project_name, project_color: s.project_color,
+        epic_id: s.epic_id, parent_title: s.epic_title, due_date: s.due_date, child_count: s.task_count,
+      });
+    }
+  }
+
+  if (levels.includes('task')) {
+    const where = [`t.status != 'cancelled'`];
+    const params = [];
+    if (projectId) { where.push('t.project_id = ?'); params.push(projectId); }
+    if (q) { where.push('(t.title LIKE ? OR t.notes LIKE ?)'); params.push(q, q); }
+    for (const t of db.prepare(`${TASK_SELECT} WHERE ${where.join(' AND ')} ORDER BY t.sort_order, t.id`).all(...params)) {
+      cards.push({
+        type: 'task', id: t.id, title: t.title, stage: t.dev_stage, sort_order: t.sort_order,
+        project_id: t.project_id, project_name: t.project_name, project_color: t.project_color,
+        epic_id: t.epic_id, parent_title: t.story_title, due_date: t.due_date,
+        priority: t.priority, status: t.status,
+      });
+    }
+  }
+
+  res.json({ board, cards });
+});
+
+// Single place where a drag-and-drop move is applied, so the per-type rules
+// (and the task status sync) live in one spot.
+router.post('/kanban/move', (req, res) => {
+  const b = req.body || {};
+  if (!CARD_TYPES.includes(b.type)) return badRequest(res, 'invalid type');
+  if (!DEV_STATUSES.includes(b.stage)) return badRequest(res, 'invalid stage');
+  const id = Number(b.id);
+  const sortOrder = Number.isFinite(+b.sort_order) ? Math.trunc(+b.sort_order) : null;
+
+  if (b.type === 'epic') {
+    const epic = db.prepare('SELECT * FROM epics WHERE id = ?').get(id);
+    if (!epic) return res.status(404).json({ error: 'epic not found' });
+    db.prepare(`UPDATE epics SET status = ?, sort_order = COALESCE(?, sort_order), updated_at = datetime('now') WHERE id = ?`)
+      .run(b.stage, sortOrder, id);
+    return res.json({ type: 'epic', card: getEpic(id) });
+  }
+  if (b.type === 'story') {
+    const story = db.prepare('SELECT * FROM user_stories WHERE id = ?').get(id);
+    if (!story) return res.status(404).json({ error: 'story not found' });
+    db.prepare(`UPDATE user_stories SET status = ?, sort_order = COALESCE(?, sort_order), updated_at = datetime('now') WHERE id = ?`)
+      .run(b.stage, sortOrder, id);
+    return res.json({ type: 'story', card: getStory(id) });
+  }
+
+  // Tasks: move the stage and keep status/completed_at consistent so My Day,
+  // scoring and the task lists agree with the board.
+  const task = getTask(id);
+  if (!task) return res.status(404).json({ error: 'task not found' });
+  const nextStatus = task.status === 'cancelled' ? task.status : statusFromStage(b.stage);
+  const completedAt = nextStatus === 'done'
+    ? (task.completed_at || new Date().toISOString())
+    : null;
+  db.prepare(`UPDATE tasks SET dev_stage = ?, status = ?, completed_at = ?,
+      sort_order = COALESCE(?, sort_order), updated_at = datetime('now') WHERE id = ?`)
+    .run(b.stage, nextStatus, completedAt, sortOrder, id);
+  res.json({ type: 'task', card: getTask(id) });
+});
 
 // ---------- tags / settings / ai ----------
 

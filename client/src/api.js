@@ -119,6 +119,13 @@ export const DEV_STATUSES = [
 ];
 export const DEV_STATUS_LABEL = Object.fromEntries(DEV_STATUSES);
 
+// Kanban card levels (the three draggable tiers).
+export const LEVELS = [
+  ['epic', 'Epics'],
+  ['story', 'Stories'],
+  ['task', 'Tasks'],
+];
+
 export function todayISO() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

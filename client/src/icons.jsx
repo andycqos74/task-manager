@@ -140,6 +140,16 @@ export function LightbulbIcon(props) {
   );
 }
 
+export function ColumnsIcon(props) {
+  return (
+    <svg {...base} strokeLinejoin="round" {...props}>
+      <rect x="3" y="4" width="5.5" height="16" rx="1.5" />
+      <rect x="9.25" y="4" width="5.5" height="11" rx="1.5" />
+      <rect x="15.5" y="4" width="5.5" height="14" rx="1.5" />
+    </svg>
+  );
+}
+
 export function BugIcon(props) {
   return (
     <svg {...base} strokeLinejoin="round" {...props}>

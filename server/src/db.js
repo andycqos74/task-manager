@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS tasks (
   tags TEXT NOT NULL DEFAULT '[]',
   recurrence TEXT,
   completed_at TEXT,
+  -- Kanban board stage. Finer-grained than status (adds in_review/deployed)
+  -- and kept in sync with it by the task routes.
+  dev_stage TEXT NOT NULL DEFAULT 'backlog' CHECK (dev_stage IN ('backlog','in_progress','in_review','done','deployed')),
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -115,6 +119,27 @@ CREATE TABLE IF NOT EXISTS ideas (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Kanban boards. Boards are cross-project; columns are configurable and each
+-- maps to one development stage (several columns may share a stage).
+CREATE TABLE IF NOT EXISTS boards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS board_columns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  stage TEXT NOT NULL CHECK (stage IN ('backlog','in_progress','in_review','done','deployed')),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_columns_board ON board_columns(board_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_do_date ON tasks(do_date);
@@ -137,9 +162,35 @@ ensureColumn('notes', 'blocks', "blocks TEXT NOT NULL DEFAULT '[]'");
 ensureColumn('projects', 'track_dev', 'track_dev INTEGER NOT NULL DEFAULT 0');
 ensureColumn('tasks', 'story_id', 'story_id INTEGER REFERENCES user_stories(id) ON DELETE SET NULL');
 ensureColumn('ideas', 'kind', "kind TEXT NOT NULL DEFAULT 'idea' CHECK (kind IN ('idea','bug'))");
+// Kanban additions.
+ensureColumn(
+  'tasks',
+  'dev_stage',
+  "dev_stage TEXT NOT NULL DEFAULT 'backlog' CHECK (dev_stage IN ('backlog','in_progress','in_review','done','deployed'))",
+);
+ensureColumn('tasks', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
 // Indexes on retrofitted columns created after the column is guaranteed to exist.
 db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_story ON tasks(story_id);');
 db.exec('CREATE INDEX IF NOT EXISTS idx_ideas_kind ON ideas(kind);');
+db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_dev_stage ON tasks(dev_stage);');
+
+// Align dev_stage with status for tasks predating the column (all default to
+// 'backlog' on ALTER, which would wrongly park done/in-progress work there).
+// Only touches rows still at the default, so it is safe to re-run.
+db.exec(`
+  UPDATE tasks SET dev_stage = 'done'
+    WHERE dev_stage = 'backlog' AND status = 'done';
+  UPDATE tasks SET dev_stage = 'in_progress'
+    WHERE dev_stage = 'backlog' AND status = 'in_progress';
+`);
+
+// Seed a default board the first time only (leaves user edits alone after that).
+if (db.prepare('SELECT COUNT(*) AS c FROM boards').get().c === 0) {
+  const boardId = db.prepare('INSERT INTO boards (name) VALUES (?)').run('Development').lastInsertRowid;
+  const addCol = db.prepare('INSERT INTO board_columns (board_id, name, stage, sort_order) VALUES (?,?,?,?)');
+  [['Backlog', 'backlog'], ['In Progress', 'in_progress'], ['In Review', 'in_review'],
+    ['Done', 'done'], ['Deployed', 'deployed']].forEach(([name, stage], i) => addCol.run(boardId, name, stage, i));
+}
 
 const DEFAULT_SETTINGS = {
   workday_minutes: '480',
