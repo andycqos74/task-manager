@@ -85,7 +85,9 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   border-bottom: 1px solid var(--sidebar-border);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 26px; gap: 20px; box-shadow: 0 4px 18px oklch(10% 0.02 195 / 0.4);
-  z-index: 60;
+  /* Positioned so the z-index reliably stacks the header — and the workspace
+     dropdown hanging out of it — above the page content below. */
+  position: relative; z-index: 60;
 }
 .brand-mark {
   font-family: 'Caslon Antique', Georgia, 'Times New Roman', serif;
@@ -484,6 +486,40 @@ button.danger:hover { background: var(--danger-light); }
 .idea-project select { padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--text-primary); background: #fff; }
 .idea-actions { display: flex; gap: 12px; }
 .quick-add-project { border: none; background: var(--badge-bg); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; font-family: inherit; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
+
+/* ---------- workspace switcher (top header) ---------- */
+.ws-switcher { position: relative; margin-right: 6px; }
+.ws-chip {
+  display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
+  border-radius: 10px; border: 1px solid var(--sidebar-border); background: oklch(28% 0.028 188);
+  color: var(--sidebar-text); font-size: 13px; font-weight: 700; cursor: pointer; max-width: 210px;
+}
+.ws-chip:hover { background: oklch(33% 0.03 188); }
+.ws-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-caret { color: var(--sidebar-text-muted); font-size: 10px; flex-shrink: 0; }
+.ws-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 80; min-width: 226px;
+  background: var(--sidebar-bg); border: 1px solid var(--sidebar-border); border-radius: 12px;
+  padding: 6px; box-shadow: 0 12px 32px oklch(12% 0.02 195 / 0.5); animation: fadeIn 0.12s ease;
+}
+.ws-menu-head {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sidebar-text-muted); padding: 6px 10px 4px;
+}
+.ws-menu-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border: none;
+  border-radius: 8px; background: transparent; color: var(--sidebar-text);
+  font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.ws-menu-item:hover { background: oklch(34% 0.03 186); }
+.ws-menu-item.active { font-weight: 800; }
+.ws-menu-item.manage { color: var(--sidebar-link); font-weight: 700; }
+.ws-tick { margin-left: auto; color: var(--sidebar-link); }
+.ws-menu-sep { height: 1px; background: var(--sidebar-border); margin: 5px 4px; }
+@media (max-width: 780px) {
+  .ws-chip { max-width: 120px; padding: 0 9px; }
+}
 
 /* ---------- kanban boards ---------- */
 .level-toggle { display: flex; gap: 4px; }
