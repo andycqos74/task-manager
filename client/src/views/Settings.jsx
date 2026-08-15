@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api, formatEstimate } from '../api.js';
 
 export default function Settings({ settings, refresh, onError }) {
@@ -42,6 +42,10 @@ export default function Settings({ settings, refresh, onError }) {
   return (
     <div className="view">
       <header className="view-header"><h2>Settings</h2></header>
+
+      <WorkspaceSettings refresh={refresh} onError={onError} />
+
+      <label className="section-label">General</label>
       <div className="field-grid settings-fields">
         <label>Workday length</label>
         <div className="inline">
@@ -117,5 +121,62 @@ export default function Settings({ settings, refresh, onError }) {
         to return to automatic.
       </div>
     </div>
+  );
+}
+
+// Workspaces are the top level: each keeps its own projects, tasks, notes,
+// ideas/bugs, dev hierarchy and boards. Switching is done from the header chip;
+// this is where they're created, renamed and deleted.
+function WorkspaceSettings({ refresh, onError }) {
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [name, setName] = useState('');
+
+  function load() {
+    api.get('/workspaces').then((d) => { setWorkspaces(d.workspaces); setActiveId(d.active_id); }).catch(onError);
+  }
+  useEffect(load, []);
+
+  const run = (p) => p.then(() => { load(); refresh(); }).catch(onError);
+
+  function create(e) {
+    e.preventDefault();
+    const n = name.trim();
+    if (!n) return;
+    run(api.post('/workspaces', { name: n })).then(() => setName(''));
+  }
+
+  function remove(ws) {
+    if (workspaces.length <= 1) { onError(new Error('Keep at least one workspace')); return; }
+    if (!confirm(`Delete "${ws.name}"? Everything in it — projects, tasks, notes, ideas, bugs and boards — is permanently deleted.`)) return;
+    run(api.delete(`/workspaces/${ws.id}`));
+  }
+
+  return (
+    <>
+      <label className="section-label">Workspaces</label>
+      <div className="hint" style={{ marginBottom: 8 }}>
+        Each workspace keeps its own projects, tasks, notes, ideas, bugs and boards — switch between them from the
+        chip in the header. Settings below and the scratch pad are shared by all workspaces.
+      </div>
+      <div className="col-config-list">
+        {workspaces.map((ws) => (
+          <div key={ws.id} className="col-config-row">
+            <span className="ws-dot" style={{ background: ws.color }} />
+            <input
+              key={`ws-${ws.id}-${ws.updated_at}`}
+              defaultValue={ws.name}
+              onBlur={(e) => e.target.value.trim() && e.target.value !== ws.name && run(api.patch(`/workspaces/${ws.id}`, { name: e.target.value }))}
+            />
+            {ws.id === activeId && <span className="badge">active</span>}
+            <button className="link danger-link" onClick={() => remove(ws)} title="Delete workspace">✕</button>
+          </div>
+        ))}
+      </div>
+      <form className="col-config-add" onSubmit={create}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New workspace name" />
+        <button type="submit" className="btn-outline">Add workspace</button>
+      </form>
+    </>
   );
 }

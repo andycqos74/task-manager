@@ -13,6 +13,7 @@ import Kanban from './views/Kanban.jsx';
 import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher.jsx';
 import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon, ColumnsIcon } from './icons.jsx';
 import impMark from './assets/imp-cut.png';
 
@@ -47,6 +48,8 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(isNarrow);
   const [searchOpen, setSearchOpen] = useState(false);
   const [taskSearch, setTaskSearch] = useState('');
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -85,7 +88,27 @@ export default function App() {
   useEffect(() => {
     api.get('/projects').then(setProjects).catch(reportError);
     api.get('/settings').then(setSettings).catch(reportError);
+    api.get('/workspaces').then((d) => {
+      setWorkspaces(d.workspaces);
+      setActiveWorkspaceId(d.active_id);
+    }).catch(reportError);
   }, [refreshKey, reportError]);
+
+  // Switching workspace changes what every endpoint returns, so close any open
+  // task, drop the search, and send the user to a neutral view before
+  // refetching — otherwise stale ids from the old workspace linger.
+  const switchWorkspace = useCallback(async (id) => {
+    try {
+      await api.post(`/workspaces/${id}/activate`);
+      setActiveWorkspaceId(id);
+      setSelectedTaskId(null);
+      setTaskSearch('');
+      setView({ name: 'myday' });
+      refresh();
+    } catch (err) {
+      reportError(err);
+    }
+  }, [refresh, reportError]);
 
   const viewProps = {
     refreshKey,
@@ -120,6 +143,12 @@ export default function App() {
           <span>or</span><span className="brand-g">g</span><span>aniser</span>
         </div>
         <div className="app-header-actions">
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            activeId={activeWorkspaceId}
+            onSwitch={switchWorkspace}
+            onManage={() => goTo({ name: 'settings' })}
+          />
           {searchOpen && (
             <input
               className="header-search-input"

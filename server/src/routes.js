@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, getSettings, setSetting, deleteSetting } from './db.js';
+import { db, getSettings, setSetting, deleteSetting, activeWorkspaceId, seedBoard } from './db.js';
 import { todayISO, addDays, computeDoDate, nextOccurrence, isValidISODate } from './dates.js';
 import { rankTasks } from './scoring.js';
 import { aiAvailable, planMyDay, prioritise } from './ai.js';
@@ -120,9 +120,67 @@ function getTask(id) {
 }
 
 function listOpenTasks() {
-  const rows = db.prepare(`${TASK_SELECT} WHERE t.status IN ('todo','in_progress') ORDER BY t.id`).all();
+  const rows = db
+    .prepare(`${TASK_SELECT} WHERE t.workspace_id = ? AND t.status IN ('todo','in_progress') ORDER BY t.id`)
+    .all(activeWorkspaceId());
   return hydrateTasks(rows);
 }
+
+// ---------- workspaces ----------
+// The top level: every project, task, note, idea/bug, epic and board belongs to
+// exactly one. Settings (incl. the AI key) and the scratch pad stay global.
+
+router.get('/workspaces', (req, res) => {
+  res.json({
+    active_id: activeWorkspaceId(),
+    workspaces: db.prepare('SELECT * FROM workspaces ORDER BY sort_order, id').all(),
+  });
+});
+
+router.post('/workspaces', (req, res) => {
+  const b = req.body || {};
+  if (!b.name || !String(b.name).trim()) return badRequest(res, 'name is required');
+  const ws = db.transaction(() => {
+    const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM workspaces').get().m;
+    const id = db.prepare('INSERT INTO workspaces (name, color, sort_order) VALUES (?,?,?)')
+      .run(String(b.name).trim(), b.color || 'oklch(60% 0.13 66)', max + 1).lastInsertRowid;
+    seedBoard(id); // every workspace starts with its own default board
+    return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id);
+  })();
+  res.status(201).json(ws);
+});
+
+router.patch('/workspaces/:id', (req, res) => {
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(req.params.id);
+  if (!ws) return res.status(404).json({ error: 'workspace not found' });
+  const b = req.body || {};
+  if ('name' in b && !String(b.name).trim()) return badRequest(res, 'name cannot be empty');
+  const updates = {};
+  if ('name' in b) updates.name = String(b.name).trim();
+  if ('color' in b) updates.color = b.color;
+  if ('sort_order' in b && Number.isFinite(+b.sort_order)) updates.sort_order = Math.trunc(+b.sort_order);
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  if (sets) db.prepare(`UPDATE workspaces SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(...Object.values(updates), ws.id);
+  res.json(db.prepare('SELECT * FROM workspaces WHERE id = ?').get(ws.id));
+});
+
+// Deleting a workspace removes everything inside it (FK cascade).
+router.delete('/workspaces/:id', (req, res) => {
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(req.params.id);
+  if (!ws) return res.status(404).json({ error: 'workspace not found' });
+  if (db.prepare('SELECT COUNT(*) AS c FROM workspaces').get().c <= 1) {
+    return badRequest(res, 'cannot delete the only workspace');
+  }
+  db.prepare('DELETE FROM workspaces WHERE id = ?').run(ws.id);
+  res.json({ ok: true, active_id: activeWorkspaceId() }); // self-heals if the active one went
+});
+
+router.post('/workspaces/:id/activate', (req, res) => {
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(req.params.id);
+  if (!ws) return res.status(404).json({ error: 'workspace not found' });
+  setSetting('active_workspace_id', ws.id);
+  res.json({ active_id: ws.id, workspace: ws });
+});
 
 // ---------- projects ----------
 
@@ -132,8 +190,8 @@ router.get('/projects', (req, res) => {
         (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status NOT IN ('done','cancelled')) AS open_tasks,
         (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status = 'done') AS done_tasks,
         (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS total_tasks
-      FROM projects p ORDER BY p.status = 'archived', p.name`)
-    .all();
+      FROM projects p WHERE p.workspace_id = ? ORDER BY p.status = 'archived', p.name`)
+    .all(activeWorkspaceId());
   res.json(projects);
 });
 
@@ -143,8 +201,8 @@ router.post('/projects', (req, res) => {
   if (!PROJECT_STATUSES.includes(status)) return badRequest(res, 'invalid status');
   for (const d of [start_date, target_date]) if (d != null && !isValidISODate(d)) return badRequest(res, 'invalid date');
   const info = db
-    .prepare('INSERT INTO projects (name, description, status, color, start_date, target_date) VALUES (?,?,?,?,?,?)')
-    .run(String(name).trim(), description, status, color, start_date, target_date);
+    .prepare('INSERT INTO projects (workspace_id, name, description, status, color, start_date, target_date) VALUES (?,?,?,?,?,?,?)')
+    .run(activeWorkspaceId(), String(name).trim(), description, status, color, start_date, target_date);
   res.status(201).json(db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -183,8 +241,8 @@ router.delete('/projects/:id', (req, res) => {
 // ---------- tasks ----------
 
 router.get('/tasks', (req, res) => {
-  const clauses = [];
-  const params = [];
+  const clauses = ['t.workspace_id = ?'];
+  const params = [activeWorkspaceId()];
   if (req.query.project_id === 'none') {
     clauses.push('t.project_id IS NULL');
   } else if (req.query.project_id) {
@@ -202,7 +260,7 @@ router.get('/tasks', (req, res) => {
     const like = `%${req.query.q}%`;
     params.push(like, like);
   }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const where = `WHERE ${clauses.join(' AND ')}`;
   const rows = db.prepare(`${TASK_SELECT} ${where} ORDER BY t.due_date IS NULL, t.due_date, t.id`).all(...params);
   let tasks = hydrateTasks(rows);
   if (req.query.tag) tasks = tasks.filter((t) => t.tags.includes(req.query.tag));
@@ -252,10 +310,11 @@ router.post('/tasks', (req, res) => {
   const doDate = manual ? b.do_date : computeDoDate(dueDate, b.estimated_minutes, settings.workday_minutes);
 
   const info = db
-    .prepare(`INSERT INTO tasks (project_id, story_id, title, notes, status, priority, due_date, do_date, do_date_is_manual,
+    .prepare(`INSERT INTO tasks (workspace_id, project_id, story_id, title, notes, status, priority, due_date, do_date, do_date_is_manual,
               estimated_minutes, my_day_date, tags, recurrence)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(
+      activeWorkspaceId(),
       projectId,
       storyId,
       String(b.title).trim(),
@@ -290,10 +349,11 @@ function spawnRecurrence(task) {
     ? addDays(nextDue, -Math.max(0, Math.round((new Date(task.due_date) - new Date(task.do_date)) / 86400000)))
     : computeDoDate(nextDue, task.estimated_minutes, settings.workday_minutes);
   const info = db
-    .prepare(`INSERT INTO tasks (project_id, title, notes, status, priority, due_date, do_date, do_date_is_manual,
+    .prepare(`INSERT INTO tasks (workspace_id, project_id, title, notes, status, priority, due_date, do_date, do_date_is_manual,
               estimated_minutes, tags, recurrence)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(
+      task.workspace_id, // the recurrence stays where the original task lives
       task.project_id,
       task.title,
       task.notes,
@@ -520,8 +580,8 @@ router.get('/views/my-day', (req, res) => {
   const totalEstimated = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
   const overdue = listOpenTasks().filter((t) => t.due_date && t.due_date < today);
   const doneToday = db
-    .prepare(`SELECT COUNT(*) AS n FROM tasks WHERE status = 'done' AND date(completed_at) = ?`)
-    .get(today).n;
+    .prepare(`SELECT COUNT(*) AS n FROM tasks WHERE workspace_id = ? AND status = 'done' AND date(completed_at) = ?`)
+    .get(activeWorkspaceId(), today).n;
 
   res.json({
     date: today,
@@ -563,15 +623,15 @@ router.get('/views/schedule', (req, res) => {
 
 // Gantt data: projects with their date-bearing tasks and dependency edges.
 router.get('/gantt', (req, res) => {
-  const clauses = [`t.status IN ('todo','in_progress','done')`];
-  const params = [];
+  const clauses = ['t.workspace_id = ?', `t.status IN ('todo','in_progress','done')`];
+  const params = [activeWorkspaceId()];
   if (req.query.project_id) {
     clauses.push('t.project_id = ?');
     params.push(Number(req.query.project_id));
   }
   const rows = db.prepare(`${TASK_SELECT} WHERE ${clauses.join(' AND ')} ORDER BY t.project_id, t.do_date, t.due_date`).all(...params);
   const tasks = hydrateTasks(rows).filter((t) => t.due_date || t.do_date);
-  const projects = db.prepare('SELECT * FROM projects ORDER BY name').all();
+  const projects = db.prepare('SELECT * FROM projects WHERE workspace_id = ? ORDER BY name').all(activeWorkspaceId());
   res.json({
     today: todayISO(),
     projects,
@@ -656,12 +716,14 @@ function validateAttachment(attach, res) {
 }
 
 router.get('/notes', (req, res) => {
-  const clauses = [];
-  const params = [];
+  // Saved notes belong to a workspace; the scratch pad is global and has its
+  // own endpoint, so it never appears in these lists.
+  const clauses = ['n.workspace_id = ?'];
+  const params = [activeWorkspaceId()];
   if (req.query.standalone === '1') clauses.push('n.project_id IS NULL AND n.task_id IS NULL AND n.is_scratch = 0');
   if (req.query.task_id) { clauses.push('n.task_id = ?'); params.push(Number(req.query.task_id)); }
   if (req.query.project_id) { clauses.push('n.project_id = ?'); params.push(Number(req.query.project_id)); }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const where = `WHERE ${clauses.join(' AND ')}`;
   res.json(db.prepare(`${NOTE_SELECT} ${where} ORDER BY n.updated_at DESC`).all(...params).map(hydrateNote));
 });
 
@@ -686,8 +748,8 @@ router.post('/notes', (req, res) => {
     blocks = [{ id: 'seed', x: 16, y: 16, text: String(b.body) }];
   }
   const info = db
-    .prepare('INSERT INTO notes (title, body, blocks, project_id, task_id) VALUES (?,?,?,?,?)')
-    .run(b.title || '', blocksToBody(blocks), JSON.stringify(blocks), b.project_id || null, b.task_id || null);
+    .prepare('INSERT INTO notes (workspace_id, title, body, blocks, project_id, task_id) VALUES (?,?,?,?,?,?)')
+    .run(activeWorkspaceId(), b.title || '', blocksToBody(blocks), JSON.stringify(blocks), b.project_id || null, b.task_id || null);
   res.status(201).json(getNote(info.lastInsertRowid));
 });
 
@@ -748,18 +810,18 @@ router.delete('/notes/:id', (req, res) => {
 
 // Epics
 router.get('/epics', (req, res) => {
-  const clauses = [];
-  const params = [];
+  const clauses = ['p.workspace_id = ?'];
+  const params = [activeWorkspaceId()];
   if (req.query.project_id) {
     clauses.push('e.project_id = ?');
     params.push(Number(req.query.project_id));
   }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const where = `WHERE ${clauses.join(' AND ')}`;
   const rows = db
     .prepare(`SELECT e.*, p.name AS project_name, p.color AS project_color,
         (SELECT COUNT(*) FROM user_stories s WHERE s.epic_id = e.id) AS story_count,
         (SELECT COUNT(*) FROM tasks t JOIN user_stories s ON s.id = t.story_id WHERE s.epic_id = e.id) AS task_count
-      FROM epics e LEFT JOIN projects p ON p.id = e.project_id ${where} ORDER BY e.sort_order, e.id`)
+      FROM epics e JOIN projects p ON p.id = e.project_id ${where} ORDER BY e.sort_order, e.id`)
     .all(...params);
   res.json(rows);
 });
@@ -805,8 +867,8 @@ router.delete('/epics/:id', (req, res) => {
 
 // User stories
 router.get('/stories', (req, res) => {
-  const clauses = [];
-  const params = [];
+  const clauses = ['e2.workspace_id = ?'];
+  const params = [activeWorkspaceId()];
   if (req.query.epic_id) {
     clauses.push('s.epic_id = ?');
     params.push(Number(req.query.epic_id));
@@ -814,12 +876,13 @@ router.get('/stories', (req, res) => {
     clauses.push('e.project_id = ?');
     params.push(Number(req.query.project_id));
   }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const where = `WHERE ${clauses.join(' AND ')}`;
   const rows = db
     .prepare(`SELECT s.*,
         (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id) AS task_count,
         (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id AND t.status = 'done') AS done_count
-      FROM user_stories s JOIN epics e ON e.id = s.epic_id ${where} ORDER BY s.sort_order, s.id`)
+      FROM user_stories s JOIN epics e ON e.id = s.epic_id JOIN projects e2 ON e2.id = e.project_id
+      ${where} ORDER BY s.sort_order, s.id`)
     .all(...params);
   res.json(rows);
 });
@@ -888,8 +951,8 @@ router.get('/roadmap', (req, res) => {
   const rows = db
     .prepare(`SELECT e.*, p.name AS project_name, p.color AS project_color
       FROM epics e JOIN projects p ON p.id = e.project_id
-      WHERE p.track_dev = 1 ORDER BY e.project_id, e.start_date, e.target_date`)
-    .all();
+      WHERE p.track_dev = 1 AND p.workspace_id = ? ORDER BY e.project_id, e.start_date, e.target_date`)
+    .all(activeWorkspaceId());
   const epics = rows
     .filter((e) => e.start_date || e.target_date)
     .map((e) => ({
@@ -902,15 +965,15 @@ router.get('/roadmap', (req, res) => {
       start: e.start_date || e.target_date,
       end: e.target_date || e.start_date,
     }));
-  const projects = db.prepare('SELECT * FROM projects WHERE track_dev = 1 ORDER BY name').all();
+  const projects = db.prepare('SELECT * FROM projects WHERE track_dev = 1 AND workspace_id = ? ORDER BY name').all(activeWorkspaceId());
   res.json({ today: todayISO(), projects, epics });
 });
 
 // ---------- ideas + bugs backlog ----------
 
 router.get('/ideas', (req, res) => {
-  const clauses = [];
-  const params = [];
+  const clauses = ['i.workspace_id = ?'];
+  const params = [activeWorkspaceId()];
   if (req.query.kind) {
     clauses.push('i.kind = ?');
     params.push(req.query.kind);
@@ -930,7 +993,7 @@ router.get('/ideas', (req, res) => {
     const like = `%${req.query.q}%`;
     params.push(like, like);
   }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const where = `WHERE ${clauses.join(' AND ')}`;
   const rows = db
     .prepare(`SELECT i.*, p.name AS project_name, p.color AS project_color
       FROM ideas i LEFT JOIN projects p ON p.id = i.project_id ${where}
@@ -952,8 +1015,8 @@ router.post('/ideas', (req, res) => {
   if (b.status && !IDEA_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
   if (b.project_id != null && !db.prepare('SELECT id FROM projects WHERE id = ?').get(b.project_id)) return badRequest(res, 'project not found');
   const info = db
-    .prepare('INSERT INTO ideas (kind, title, description, project_id, status) VALUES (?,?,?,?,?)')
-    .run(b.kind || 'idea', String(b.title).trim(), b.description || '', b.project_id || null, b.status || 'open');
+    .prepare('INSERT INTO ideas (workspace_id, kind, title, description, project_id, status) VALUES (?,?,?,?,?,?)')
+    .run(activeWorkspaceId(), b.kind || 'idea', String(b.title).trim(), b.description || '', b.project_id || null, b.status || 'open');
   res.status(201).json(getIdea(info.lastInsertRowid));
 });
 
@@ -1025,8 +1088,8 @@ router.post('/ideas/:id/promote', (req, res) => {
   }
   const task = db.transaction(() => {
     const info = db
-      .prepare('INSERT INTO tasks (project_id, story_id, title, notes, tags) VALUES (?,?,?,?,?)')
-      .run(projectId, storyId, idea.title, idea.description, JSON.stringify(tags));
+      .prepare('INSERT INTO tasks (workspace_id, project_id, story_id, title, notes, tags) VALUES (?,?,?,?,?,?)')
+      .run(idea.workspace_id, projectId, storyId, idea.title, idea.description, JSON.stringify(tags));
     markPromoted();
     return getTask(info.lastInsertRowid);
   })();
@@ -1039,8 +1102,8 @@ function convertTaskToBacklog(req, res, kind) {
   if (!task) return res.status(404).json({ error: 'task not found' });
   const item = db.transaction(() => {
     const info = db
-      .prepare('INSERT INTO ideas (kind, title, description, project_id) VALUES (?,?,?,?)')
-      .run(kind, task.title, task.notes || '', task.project_id || null);
+      .prepare('INSERT INTO ideas (workspace_id, kind, title, description, project_id) VALUES (?,?,?,?,?)')
+      .run(task.workspace_id, kind, task.title, task.notes || '', task.project_id || null);
     db.prepare('DELETE FROM tasks WHERE id = ?').run(task.id);
     return getIdea(info.lastInsertRowid);
   })();
@@ -1065,7 +1128,7 @@ function getBoard(id) {
 }
 
 router.get('/boards', (req, res) => {
-  const boards = db.prepare('SELECT * FROM boards ORDER BY sort_order, id').all();
+  const boards = db.prepare('SELECT * FROM boards WHERE workspace_id = ? ORDER BY sort_order, id').all(activeWorkspaceId());
   res.json(boards.map((b) => ({ ...b, columns: boardColumns(b.id) })));
 });
 
@@ -1073,8 +1136,9 @@ router.post('/boards', (req, res) => {
   const b = req.body || {};
   if (!b.name || !String(b.name).trim()) return badRequest(res, 'name is required');
   const board = db.transaction(() => {
-    const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM boards').get().m;
-    const id = db.prepare('INSERT INTO boards (name, sort_order) VALUES (?,?)').run(String(b.name).trim(), max + 1).lastInsertRowid;
+    const ws = activeWorkspaceId();
+    const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM boards WHERE workspace_id = ?').get(ws).m;
+    const id = db.prepare('INSERT INTO boards (workspace_id, name, sort_order) VALUES (?,?,?)').run(ws, String(b.name).trim(), max + 1).lastInsertRowid;
     const addCol = db.prepare('INSERT INTO board_columns (board_id, name, stage, sort_order) VALUES (?,?,?,?)');
     DEFAULT_COLUMNS.forEach(([name, stage], i) => addCol.run(id, name, stage, i));
     return getBoard(id);
@@ -1140,7 +1204,9 @@ router.delete('/board-columns/:id', (req, res) => {
 // shape. Cross-project by default; `levels`, `project_id` and `q` narrow it.
 router.get('/boards/:id/cards', (req, res) => {
   const board = getBoard(req.params.id);
-  if (!board) return res.status(404).json({ error: 'board not found' });
+  // Reject boards from another workspace, so a board id left over from before a
+  // workspace switch can't render that workspace's cards.
+  if (!board || board.workspace_id !== activeWorkspaceId()) return res.status(404).json({ error: 'board not found' });
 
   const levels = req.query.levels
     ? String(req.query.levels).split(',').map((s) => s.trim()).filter((s) => CARD_TYPES.includes(s))
@@ -1148,15 +1214,16 @@ router.get('/boards/:id/cards', (req, res) => {
   const projectId = req.query.project_id ? Number(req.query.project_id) : null;
   const q = req.query.q ? `%${req.query.q}%` : null;
   const cards = [];
+  const ws = activeWorkspaceId();
 
   if (levels.includes('epic')) {
-    const where = ['1=1'];
-    const params = [];
+    const where = ['p.workspace_id = ?'];
+    const params = [ws];
     if (projectId) { where.push('e.project_id = ?'); params.push(projectId); }
     if (q) { where.push('(e.title LIKE ? OR e.description LIKE ?)'); params.push(q, q); }
     for (const e of db.prepare(`SELECT e.*, p.name AS project_name, p.color AS project_color,
         (SELECT COUNT(*) FROM user_stories s WHERE s.epic_id = e.id) AS story_count
-        FROM epics e LEFT JOIN projects p ON p.id = e.project_id
+        FROM epics e JOIN projects p ON p.id = e.project_id
         WHERE ${where.join(' AND ')} ORDER BY e.sort_order, e.id`).all(...params)) {
       cards.push({
         type: 'epic', id: e.id, title: e.title, stage: e.status, sort_order: e.sort_order,
@@ -1167,14 +1234,14 @@ router.get('/boards/:id/cards', (req, res) => {
   }
 
   if (levels.includes('story')) {
-    const where = ['1=1'];
-    const params = [];
+    const where = ['p.workspace_id = ?'];
+    const params = [ws];
     if (projectId) { where.push('e.project_id = ?'); params.push(projectId); }
     if (q) { where.push('(s.title LIKE ? OR s.description LIKE ?)'); params.push(q, q); }
     for (const s of db.prepare(`SELECT s.*, e.title AS epic_title, e.project_id AS project_id,
         p.name AS project_name, p.color AS project_color,
         (SELECT COUNT(*) FROM tasks t WHERE t.story_id = s.id) AS task_count
-        FROM user_stories s JOIN epics e ON e.id = s.epic_id LEFT JOIN projects p ON p.id = e.project_id
+        FROM user_stories s JOIN epics e ON e.id = s.epic_id JOIN projects p ON p.id = e.project_id
         WHERE ${where.join(' AND ')} ORDER BY s.sort_order, s.id`).all(...params)) {
       cards.push({
         type: 'story', id: s.id, title: s.title, stage: s.status, sort_order: s.sort_order,
@@ -1185,8 +1252,8 @@ router.get('/boards/:id/cards', (req, res) => {
   }
 
   if (levels.includes('task')) {
-    const where = [`t.status != 'cancelled'`];
-    const params = [];
+    const where = ['t.workspace_id = ?', `t.status != 'cancelled'`];
+    const params = [ws];
     if (projectId) { where.push('t.project_id = ?'); params.push(projectId); }
     if (q) { where.push('(t.title LIKE ? OR t.notes LIKE ?)'); params.push(q, q); }
     for (const t of db.prepare(`${TASK_SELECT} WHERE ${where.join(' AND ')} ORDER BY t.sort_order, t.id`).all(...params)) {
@@ -1243,7 +1310,7 @@ router.post('/kanban/move', (req, res) => {
 // ---------- tags / settings / ai ----------
 
 router.get('/tags', (req, res) => {
-  const rows = db.prepare(`SELECT tags FROM tasks WHERE status IN ('todo','in_progress')`).all();
+  const rows = db.prepare(`SELECT tags FROM tasks WHERE workspace_id = ? AND status IN ('todo','in_progress')`).all(activeWorkspaceId());
   const all = new Set();
   for (const r of rows) for (const t of JSON.parse(r.tags || '[]')) all.add(t);
   res.json([...all].sort());

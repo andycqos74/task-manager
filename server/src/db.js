@@ -12,8 +12,21 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 db.exec(`
+-- Workspaces are the top level: each keeps its own projects, tasks, notes,
+-- ideas/bugs, dev hierarchy and boards, so work and personal stay separate.
+-- Settings (incl. the AI key) and the scratch pad are deliberately global.
+CREATE TABLE IF NOT EXISTS workspaces (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT 'oklch(60% 0.13 66)',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','on_hold','completed','archived')),
@@ -27,6 +40,7 @@ CREATE TABLE IF NOT EXISTS projects (
 
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
   project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   story_id INTEGER REFERENCES user_stories(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
@@ -68,8 +82,10 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+-- notes.workspace_id is NULL for the global scratch pad, set for saved notes.
 CREATE TABLE IF NOT EXISTS notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
   title TEXT NOT NULL DEFAULT '',
   body TEXT NOT NULL DEFAULT '',
   blocks TEXT NOT NULL DEFAULT '[]',
@@ -110,6 +126,7 @@ CREATE TABLE IF NOT EXISTS user_stories (
 -- hierarchy. The kind column distinguishes the two lists (same shape otherwise).
 CREATE TABLE IF NOT EXISTS ideas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
   kind TEXT NOT NULL DEFAULT 'idea' CHECK (kind IN ('idea','bug')),
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
@@ -123,6 +140,7 @@ CREATE TABLE IF NOT EXISTS ideas (
 -- maps to one development stage (several columns may share a stage).
 CREATE TABLE IF NOT EXISTS boards (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -169,10 +187,22 @@ ensureColumn(
   "dev_stage TEXT NOT NULL DEFAULT 'backlog' CHECK (dev_stage IN ('backlog','in_progress','in_review','done','deployed'))",
 );
 ensureColumn('tasks', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
+// Workspaces: every top-level entity belongs to one. Nullable with a NULL
+// default, which is what SQLite requires when adding a REFERENCES column.
+for (const table of ['projects', 'tasks', 'notes', 'ideas', 'boards']) {
+  ensureColumn(table, 'workspace_id', 'workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE');
+}
 // Indexes on retrofitted columns created after the column is guaranteed to exist.
 db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_story ON tasks(story_id);');
 db.exec('CREATE INDEX IF NOT EXISTS idx_ideas_kind ON ideas(kind);');
 db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_dev_stage ON tasks(dev_stage);');
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_notes_workspace ON notes(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_ideas_workspace ON ideas(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_boards_workspace ON boards(workspace_id);
+`);
 
 // Align dev_stage with status for tasks predating the column (all default to
 // 'backlog' on ALTER, which would wrongly park done/in-progress work there).
@@ -184,13 +214,31 @@ db.exec(`
     WHERE dev_stage = 'backlog' AND status = 'in_progress';
 `);
 
-// Seed a default board the first time only (leaves user edits alone after that).
-if (db.prepare('SELECT COUNT(*) AS c FROM boards').get().c === 0) {
-  const boardId = db.prepare('INSERT INTO boards (name) VALUES (?)').run('Development').lastInsertRowid;
-  const addCol = db.prepare('INSERT INTO board_columns (board_id, name, stage, sort_order) VALUES (?,?,?,?)');
-  [['Backlog', 'backlog'], ['In Progress', 'in_progress'], ['In Review', 'in_review'],
-    ['Done', 'done'], ['Deployed', 'deployed']].forEach(([name, stage], i) => addCol.run(boardId, name, stage, i));
+// Ensure at least one workspace exists, then adopt any pre-workspace rows into
+// it. Both steps are no-ops once done, so this is safe to re-run.
+let defaultWorkspaceId = db.prepare('SELECT id FROM workspaces ORDER BY sort_order, id LIMIT 1').get()?.id;
+if (!defaultWorkspaceId) {
+  defaultWorkspaceId = db.prepare('INSERT INTO workspaces (name) VALUES (?)').run('My Workspace').lastInsertRowid;
 }
+// Saved notes get adopted; the scratch pad stays global (workspace_id NULL).
+db.prepare('UPDATE projects SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
+db.prepare('UPDATE tasks SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
+db.prepare('UPDATE ideas SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
+db.prepare('UPDATE boards SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
+db.prepare('UPDATE notes SET workspace_id = ? WHERE workspace_id IS NULL AND is_scratch = 0').run(defaultWorkspaceId);
+
+// Seed a default board for the first workspace only (leaves user edits alone).
+export const DEFAULT_BOARD_COLUMNS = [
+  ['Backlog', 'backlog'], ['In Progress', 'in_progress'], ['In Review', 'in_review'],
+  ['Done', 'done'], ['Deployed', 'deployed'],
+];
+export function seedBoard(workspaceId, name = 'Development') {
+  const boardId = db.prepare('INSERT INTO boards (workspace_id, name) VALUES (?,?)').run(workspaceId, name).lastInsertRowid;
+  const addCol = db.prepare('INSERT INTO board_columns (board_id, name, stage, sort_order) VALUES (?,?,?,?)');
+  DEFAULT_BOARD_COLUMNS.forEach(([n, stage], i) => addCol.run(boardId, n, stage, i));
+  return boardId;
+}
+if (db.prepare('SELECT COUNT(*) AS c FROM boards').get().c === 0) seedBoard(defaultWorkspaceId);
 
 const DEFAULT_SETTINGS = {
   workday_minutes: '480',
@@ -199,6 +247,9 @@ const DEFAULT_SETTINGS = {
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
+// The active workspace is server-side state so every endpoint can scope to it
+// without the client having to pass it (and risk leaking across workspaces).
+insertSetting.run('active_workspace_id', String(defaultWorkspaceId));
 
 export function getSettings() {
   const rows = db.prepare('SELECT key, value FROM settings').all();
@@ -211,6 +262,17 @@ export function getSettings() {
 export function setSetting(key, value) {
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
     .run(key, String(value));
+}
+
+// The id of the workspace all scoped queries run against. Falls back to the
+// first workspace if the stored one was deleted, self-healing the setting.
+export function activeWorkspaceId() {
+  const stored = Number(db.prepare(`SELECT value FROM settings WHERE key = 'active_workspace_id'`).get()?.value);
+  if (stored && db.prepare('SELECT 1 FROM workspaces WHERE id = ?').get(stored)) return stored;
+  const first = db.prepare('SELECT id FROM workspaces ORDER BY sort_order, id LIMIT 1').get();
+  const id = first ? first.id : db.prepare('INSERT INTO workspaces (name) VALUES (?)').run('My Workspace').lastInsertRowid;
+  setSetting('active_workspace_id', id);
+  return id;
 }
 
 export function deleteSetting(key) {
