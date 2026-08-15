@@ -227,6 +227,37 @@ router.patch('/projects/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id));
 });
 
+// Move a project to another workspace. Its tasks, attached notes and attached
+// ideas/bugs carry their own workspace_id, so they must move with it or they'd
+// be stranded in the old workspace. Epics and stories inherit through the
+// project, so they follow automatically.
+router.post('/projects/:id/move', (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'project not found' });
+  const target = Number((req.body || {}).workspace_id);
+  if (!target || !db.prepare('SELECT 1 FROM workspaces WHERE id = ?').get(target)) {
+    return badRequest(res, 'unknown target workspace');
+  }
+  if (target === project.workspace_id) return badRequest(res, 'project is already in that workspace');
+
+  const moved = db.transaction(() => {
+    const counts = {
+      tasks: db.prepare('UPDATE tasks SET workspace_id = ?, updated_at = datetime(\'now\') WHERE project_id = ?')
+        .run(target, project.id).changes,
+      // Notes attached to the project, or to any of its tasks.
+      notes: db.prepare(`UPDATE notes SET workspace_id = ?, updated_at = datetime('now')
+          WHERE is_scratch = 0 AND (project_id = ? OR task_id IN (SELECT id FROM tasks WHERE project_id = ?))`)
+        .run(target, project.id, project.id).changes,
+      ideas: db.prepare('UPDATE ideas SET workspace_id = ?, updated_at = datetime(\'now\') WHERE project_id = ?')
+        .run(target, project.id).changes,
+    };
+    db.prepare(`UPDATE projects SET workspace_id = ?, updated_at = datetime('now') WHERE id = ?`).run(target, project.id);
+    return counts;
+  })();
+
+  res.json({ project: db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id), moved });
+});
+
 router.delete('/projects/:id', (req, res) => {
   const mode = req.query.tasks === 'delete' ? 'delete' : 'keep';
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);

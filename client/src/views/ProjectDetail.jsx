@@ -9,6 +9,8 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
   const [tasks, setTasks] = useState([]);
   const [showDone, setShowDone] = useState(false);
   const [tab, setTab] = useState('tasks');
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
 
   useEffect(() => {
     api.get('/projects').then((all) => {
@@ -19,6 +21,13 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
     api.get(`/tasks?project_id=${projectId}${showDone ? '&include_done=1' : ''}`).then(setTasks).catch(onError);
   }, [refreshKey, projectId, showDone]);
 
+  useEffect(() => {
+    api.get('/workspaces').then((d) => {
+      setWorkspaces(d.workspaces);
+      setActiveWorkspaceId(d.active_id);
+    }).catch(() => {});
+  }, [refreshKey]);
+
   if (!project) return <div className="empty">Loading…</div>;
   const devTab = project.track_dev && tab === 'dev';
 
@@ -26,6 +35,21 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
     try {
       await api.patch(`/projects/${project.id}`, body);
       refresh();
+    } catch (err) {
+      onError(err);
+    }
+  }
+
+  // Moving takes the project's tasks, attached notes and ideas with it, so the
+  // project leaves this workspace entirely — go back to the list afterwards.
+  async function moveToWorkspace(workspaceId) {
+    const target = workspaces.find((w) => w.id === Number(workspaceId));
+    if (!target) return;
+    if (!confirm(`Move "${project.name}" to ${target.name}? Its tasks, attached notes and ideas move with it, and it will no longer appear in this workspace.`)) return;
+    try {
+      await api.post(`/projects/${project.id}/move`, { workspace_id: target.id });
+      refresh();
+      setView({ name: 'projects' });
     } catch (err) {
       onError(err);
     }
@@ -72,6 +96,15 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
           <option value="completed">Completed</option>
           <option value="archived">Archived</option>
         </select>
+        <label>Workspace</label>
+        <div className="inline">
+          <select value={activeWorkspaceId || ''} onChange={(e) => moveToWorkspace(e.target.value)}>
+            {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+          {workspaces.length > 1
+            ? <span className="hint">move this project — its tasks, notes and ideas go with it</span>
+            : <span className="hint">add another workspace in Settings to move projects between them</span>}
+        </div>
         <label>Start date</label>
         <input type="date" value={project.start_date || ''} onChange={(e) => patch({ start_date: e.target.value || null })} />
         <label>Target date</label>
