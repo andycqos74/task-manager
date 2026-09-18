@@ -119,6 +119,34 @@ export function PencilIcon(props) {
   );
 }
 
+// Notepad dock: corner arrows for the expand / shrink toggle.
+export function ExpandIcon(props) {
+  return (
+    <svg {...base} width={14} height={14} strokeWidth={2.2} strokeLinejoin="round" {...props}>
+      <path d="M14 4h6v6" />
+      <path d="M10 20H4v-6" />
+    </svg>
+  );
+}
+
+export function ShrinkIcon(props) {
+  return (
+    <svg {...base} width={14} height={14} strokeWidth={2.2} strokeLinejoin="round" {...props}>
+      <path d="M10 4v6H4" />
+      <path d="M14 20v-6h6" />
+    </svg>
+  );
+}
+
+export function PlusIcon(props) {
+  return (
+    <svg {...base} width={13} height={13} strokeWidth={2.4} {...props}>
+      <line x1="12" y1="4" x2="12" y2="20" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+    </svg>
+  );
+}
+
 // Development tracking
 export function LayersIcon(props) {
   return (
