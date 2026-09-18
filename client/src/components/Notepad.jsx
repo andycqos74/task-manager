@@ -277,7 +277,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
     }
   }
 
-  // Turn the focused block into a backlog idea (title + description).
+  // Turn the focused block into an idea (title + description).
   async function lineToIdea() {
     const lines = focusedLines('→ Idea');
     if (!lines) return;
@@ -372,7 +372,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
             <button className="to-task-btn" onClick={lineToTask} title="Turn the current line or selection into a task">
               → Task
             </button>
-            <button className="to-idea-btn" onClick={lineToIdea} title="Turn the current line or selection into a backlog idea">
+            <button className="to-idea-btn" onClick={lineToIdea} title="Turn the current line or selection into an idea">
               → Idea
             </button>
             <button className="to-bug-btn" onClick={lineToBug} title="Turn the current line or selection into a bug">

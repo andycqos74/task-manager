@@ -67,7 +67,7 @@ export default function DevTracker({ projectId, refreshKey, refresh, onSelectTas
               defaultValue={epic.title}
               onBlur={(e) => e.target.value.trim() && e.target.value !== epic.title && patchEpic(epic.id, { title: e.target.value })}
             />
-            <span className="tree-count">{epic.story_count} stories · {epic.task_count} tasks</span>
+            <EpicCounts epic={epic} />
             <select className={`dev-status dev-status-${epic.status}`} value={epic.status} onChange={(e) => patchEpic(epic.id, { status: e.target.value })}>
               {DEV_STATUSES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
@@ -90,7 +90,7 @@ export default function DevTracker({ projectId, refreshKey, refresh, onSelectTas
                       defaultValue={story.title}
                       onBlur={(e) => e.target.value.trim() && e.target.value !== story.title && patchStory(story.id, { title: e.target.value })}
                     />
-                    <span className="tree-count">{story.done_count}/{story.task_count}</span>
+                    <StoryCounts story={story} />
                     <select className={`dev-status dev-status-${story.status}`} value={story.status} onChange={(e) => patchStory(story.id, { status: e.target.value })}>
                       {DEV_STATUSES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                     </select>
@@ -114,6 +114,39 @@ export default function DevTracker({ projectId, refreshKey, refresh, onSelectTas
         </div>
       ))}
     </div>
+  );
+}
+
+// "1 story" / "4 stories" — the count badges read as English, not bare numbers.
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+// How much work an epic holds: its user stories, and the tasks under them.
+// Counted from the tree the tab already has, so the badges always agree with
+// the rows below them.
+function EpicCounts({ epic }) {
+  const tasks = epic.stories.reduce((n, s) => n + s.tasks.length, 0);
+  return (
+    <span className="tree-badges">
+      <span className="badge count-badge stories" title="User stories in this epic">
+        {plural(epic.stories.length, 'story', 'stories')}
+      </span>
+      <span className="badge count-badge tasks" title="Tasks across this epic's stories">
+        {plural(tasks, 'task', 'tasks')}
+      </span>
+    </span>
+  );
+}
+
+// Tasks in a story, as done / total.
+function StoryCounts({ story }) {
+  const done = story.tasks.filter((t) => t.status === 'done').length;
+  const complete = story.tasks.length > 0 && done === story.tasks.length;
+  return (
+    <span className="tree-badges">
+      <span className={`badge count-badge tasks ${complete ? 'complete' : ''}`} title="Tasks in this story (done / total)">
+        {done}/{plural(story.tasks.length, 'task', 'tasks')}
+      </span>
+    </span>
   );
 }
 

@@ -94,7 +94,11 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   font-weight: 400; font-size: 34px; letter-spacing: 0.03em;
   color: oklch(90% 0.13 152); display: flex; align-items: center; line-height: 1; position: relative;
   animation: emberGlow 3.5s ease-in-out infinite;
+  /* It doubles as the link home (My Day), so reset the button chrome. */
+  border: none; background: transparent; padding: 0; cursor: pointer;
 }
+.brand-mark:hover { filter: brightness(1.12); }
+.brand-mark:focus-visible { outline: 2px solid oklch(80% 0.13 152); outline-offset: 4px; border-radius: 8px; }
 .brand-this { margin-left: 148px; }
 .brand-imp { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; margin: 0 4px; }
 .brand-imp img { position: relative; top: 1px; z-index: 2; filter: drop-shadow(0 0 14px oklch(70% 0.18 152 / 0.5)); }
@@ -454,7 +458,13 @@ button.danger:hover { background: var(--danger-light); }
   font-size: 14px; font-weight: 650; color: var(--text-primary); padding: 4px 2px; outline: none;
 }
 .tree-title:focus { border-bottom: 1px solid var(--card-border); }
-.tree-count { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.tree-badges { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.badge.count-badge {
+  background: var(--badge-bg); color: var(--text-secondary);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em;
+}
+.badge.count-badge.stories { background: var(--accent-light); color: var(--accent-dark); }
+.badge.count-badge.tasks.complete { background: var(--success-light); color: var(--success); }
 .dev-status {
   border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 12px;
   font-weight: 700; font-family: inherit; background: #fff; cursor: pointer; flex-shrink: 0;
@@ -465,7 +475,11 @@ button.danger:hover { background: var(--danger-light); }
 .danger-link { color: var(--danger); }
 .danger-link:hover { color: var(--danger-dark); }
 
-/* Ideas + bugs backlog */
+/* Move-to-workspace picker */
+.ws-move { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ws-move select { flex-shrink: 0; }
+
+/* Ideas + bugs */
 .idea-list { display: flex; flex-direction: column; gap: 8px; }
 .idea-card { background: #fff; border: 1px solid var(--card-border); border-left: 3px solid transparent; border-radius: 13px; overflow: hidden; }
 .idea-card.bug { border-left-color: var(--danger); }

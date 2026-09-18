@@ -6,7 +6,7 @@ const LEVEL_LABEL = { epic: 'Epic', story: 'Story', task: 'Task' };
 
 // Cross-project kanban. Columns come from the board config (each mapped to a
 // dev stage); epics, stories and tasks can all be dragged between them.
-export default function Kanban({ refreshKey, refresh, projects, onSelectTask, onError }) {
+export default function Kanban({ refreshKey, refresh, projects, workspaces, activeWorkspaceId, onSelectTask, onError }) {
   const [boards, setBoards] = useState([]);
   const [boardId, setBoardId] = useState(null);
   const [cards, setCards] = useState([]);
@@ -16,6 +16,7 @@ export default function Kanban({ refreshKey, refresh, projects, onSelectTask, on
   const [swimlane, setSwimlane] = useState('none');
   const [collapsed, setCollapsed] = useState({});
   const [configOpen, setConfigOpen] = useState(false);
+  const [newBoard, setNewBoard] = useState('');
   const [dragging, setDragging] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
 
@@ -62,11 +63,29 @@ export default function Kanban({ refreshKey, refresh, projects, onSelectTask, on
 
   const lanes = useMemo(() => buildLanes(cards, swimlane), [cards, swimlane]);
 
+  // A workspace can end up with no board — a new workspace whose board was
+  // moved away, say — so the empty state has to be able to create one.
+  async function createBoard(e) {
+    e.preventDefault();
+    const name = newBoard.trim();
+    if (!name) return;
+    try {
+      const created = await api.post('/boards', { name });
+      setNewBoard('');
+      await loadBoards();
+      setBoardId(created.id);
+    } catch (err) { onError(err); }
+  }
+
   if (!board) {
     return (
       <div className="view wide">
         <header className="view-header"><div><h2>Boards</h2></div></header>
-        <div className="empty">No boards yet.</div>
+        <div className="empty">No boards in this workspace yet.</div>
+        <form className="quick-add" onSubmit={createBoard}>
+          <span className="quick-add-plus">＋</span>
+          <input value={newBoard} onChange={(e) => setNewBoard(e.target.value)} placeholder="New board name — press Enter" />
+        </form>
       </div>
     );
   }
@@ -113,8 +132,11 @@ export default function Kanban({ refreshKey, refresh, projects, onSelectTask, on
         <BoardConfig
           board={board}
           boards={boards}
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
           onClose={() => setConfigOpen(false)}
           onChanged={() => { loadBoards(); loadCards(); }}
+          onMoved={() => { setConfigOpen(false); setCards([]); setBoardId(null); loadBoards(); }}
           onSelectBoard={setBoardId}
           onError={onError}
         />

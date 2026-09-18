@@ -7,7 +7,7 @@ import Review from './views/Review.jsx';
 import Projects from './views/Projects.jsx';
 import ProjectDetail from './views/ProjectDetail.jsx';
 import Gantt from './views/Gantt.jsx';
-import Backlog from './views/Backlog.jsx';
+import Ideas from './views/Ideas.jsx';
 import Roadmap from './views/Roadmap.jsx';
 import Kanban from './views/Kanban.jsx';
 import Settings from './views/Settings.jsx';
@@ -27,7 +27,7 @@ const NAV = [
 
 // Development-tracking section, kept separate from the to-do nav above.
 const DEV_NAV = [
-  { key: 'backlog', label: 'Backlog', Icon: LightbulbIcon },
+  { key: 'ideas', label: 'Ideas', Icon: LightbulbIcon },
   { key: 'bugs', label: 'Bugs', Icon: BugIcon },
   { key: 'kanban', label: 'Boards', Icon: ColumnsIcon },
   { key: 'roadmap', label: 'Roadmap', Icon: MapIcon },
@@ -115,6 +115,8 @@ export default function App() {
     refresh,
     projects,
     settings,
+    workspaces,
+    activeWorkspaceId,
     onSelectTask: setSelectedTaskId,
     onError: reportError,
     setView,
@@ -133,7 +135,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="brand-mark">
+        <button className="brand-mark" onClick={() => goTo({ name: 'myday' })} title="My Day" aria-label="My Day">
           <span className="brand-this">this</span>
           <span className="brand-imp">
             <img src={impMark} alt="" width={78} height={60} />
@@ -141,7 +143,7 @@ export default function App() {
             <span className="brand-imp-glow" style={{ top: 44 }} />
           </span>
           <span>or</span><span className="brand-g">g</span><span>aniser</span>
-        </div>
+        </button>
         <div className="app-header-actions">
           <WorkspaceSwitcher
             workspaces={workspaces}
@@ -256,8 +258,8 @@ export default function App() {
           {view.name === 'all' && <AllTasks {...allTasksProps} />}
           {view.name === 'review' && <Review {...viewProps} />}
           {view.name === 'gantt' && <Gantt {...viewProps} />}
-          {view.name === 'backlog' && <Backlog kind="idea" key="backlog" {...viewProps} />}
-          {view.name === 'bugs' && <Backlog kind="bug" key="bugs" {...viewProps} />}
+          {view.name === 'ideas' && <Ideas kind="idea" key="ideas" {...viewProps} />}
+          {view.name === 'bugs' && <Ideas kind="bug" key="bugs" {...viewProps} />}
           {view.name === 'kanban' && <Kanban {...viewProps} />}
           {view.name === 'roadmap' && <Roadmap {...viewProps} />}
           {view.name === 'projects' && <Projects {...viewProps} />}
@@ -273,6 +275,8 @@ export default function App() {
             taskId={selectedTaskId}
             projects={projects}
             settings={settings}
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
             onClose={() => setSelectedTaskId(null)}
             onChanged={refresh}
             onError={reportError}
