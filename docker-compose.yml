@@ -1,10 +1,22 @@
+# Deployment compose file: pulls a pre-built image from GHCR.
+#
+# Nothing is compiled on this host — GitHub Actions builds and publishes the
+# image on every push to main (see .github/workflows/build.yml). To build
+# locally instead, add the override file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
 services:
   task-manager:
-    build: .
-    image: task-manager
+    # IMAGE_TAG pins a specific build: a branch (main, multi-user), a release
+    # (v1.2.0), or an exact commit (sha-<40 hex>) to roll back to.
+    image: ghcr.io/andycqos74/task-manager:${IMAGE_TAG:-latest}
+    # Always re-check the registry on `up`, so a redeploy picks up a new
+    # image published under the same tag instead of reusing the cached one.
+    pull_policy: always
+    container_name: ${CONTAINER_NAME:-task-manager}
     ports:
       # host:container — open http://localhost:3001 in your browser.
-      - "3001:3001"
+      - "${HOST_PORT:-3001}:3001"
     environment:
       # AI planning is optional. Leave unset to use the built-in rule engine.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -20,4 +32,6 @@ volumes:
     # matter what the Compose project / Portainer stack is called — without
     # this, Compose derives the volume name from the stack name, and
     # redeploying under a differently-named stack silently starts fresh.
-    name: task-manager-data
+    # Override DATA_VOLUME only to run a second, separate instance on the
+    # same host (e.g. the multi-user build alongside this one).
+    name: ${DATA_VOLUME:-task-manager-data}

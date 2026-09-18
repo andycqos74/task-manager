@@ -1,0 +1,119 @@
+# Build, test and package the app on GitHub — the Docker host never compiles
+# anything, it only pulls a finished image from GHCR.
+#
+#   every branch + PR  -> test job only
+#   main / develop / multi-user*, and v* tags -> test job, then publish to
+#                         ghcr.io/<owner>/<repo>
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # One run per ref; a new push cancels the in-flight build for that ref.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Run server tests
+        run: npm test
+        working-directory: server
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      # Catches frontend build breaks here rather than halfway through the
+      # image build, where the failure is slower and harder to read.
+      - name: Build client
+        run: npm run build
+        working-directory: client
+
+  publish:
+    name: Publish image to GHCR
+    needs: test
+    # Release refs only. Feature branches get tested but not published.
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/main' ||
+       github.ref == 'refs/heads/develop' ||
+       startsWith(github.ref, 'refs/heads/multi-user') ||
+       startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Provided automatically by Actions — no PAT to create or rotate.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag scheme:
+      #   main            -> :main    + :latest
+      #   develop         -> :develop
+      #   multi-user      -> :multi-user
+      #   v1.2.3 tag      -> :v1.2.3  + :1.2.3
+      #   every build     -> :sha-<full commit sha>   (immutable, for rollback)
+      - name: Derive image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha,format=long,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # amd64 only: better-sqlite3 is a native module, and cross-building
+          # it for arm64 under QEMU takes many minutes. See DEPLOY.md if the
+          # target host is arm (Raspberry Pi, Apple silicon, Graviton).
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Summarise
+        run: |
+          echo "### Published image" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

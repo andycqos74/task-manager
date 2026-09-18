@@ -6,6 +6,8 @@ server/data
 .gitignore
 *.md
 .env
+.env.example
 Dockerfile
-docker-compose.yml
+docker-compose*.yml
 .dockerignore
+.github

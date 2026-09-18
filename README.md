@@ -37,31 +37,42 @@ The whole app runs as a **single container** — the Node server serves the buil
 frontend and the `/api` routes on the same port, so there is no separate web server and
 no CORS to configure.
 
+Images are built and tested by GitHub Actions and published to GHCR, so the Docker host
+never compiles anything — it just pulls:
+
 ```bash
-docker compose up --build
+curl -O https://raw.githubusercontent.com/andycqos74/task-manager/main/docker-compose.yml
+docker compose up -d
 ```
 
 Then open **http://localhost:3001** in your browser — that one URL serves both the UI and
 the API. To enable AI planning, either open **Settings** in the app and paste in a key
-(recommended — no restart needed), or provide it as an environment variable before starting
-the container:
+(recommended — no restart needed), or put it in a `.env` file beside the compose file
+(see `.env.example`).
+
+Update to the newest build, or roll back to an exact commit:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
+docker compose pull && docker compose up -d     # newest main
+IMAGE_TAG=sha-<commit-sha> docker compose up -d # pin / roll back
 ```
 
-Without Compose:
+To build the image locally instead of pulling it (development, or testing a Dockerfile
+change):
 
 ```bash
-docker build -t task-manager .
-docker run -p 3001:3001 -v taskdata:/data \
-  -e ANTHROPIC_API_KEY=sk-ant-... task-manager   # -e is optional
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
 ```
 
-The SQLite database is stored in the `taskdata` volume (mounted at `/data`, which the
-server reads via `DATA_DIR`), so your tasks survive container restarts and rebuilds. The
-image is a three-stage build: it compiles the frontend, compiles the native `better-sqlite3`
-module in a toolchain stage, and ships a slim runtime image that runs as a non-root user.
+The SQLite database is stored in the `task-manager-data` volume (mounted at `/data`, which
+the server reads via `DATA_DIR`), so your tasks survive container restarts and image
+updates. The image is a three-stage build: it compiles the frontend, compiles the native
+`better-sqlite3` module in a toolchain stage, and ships a slim runtime image that runs as a
+non-root user.
+
+Full instructions — GHCR package visibility, Portainer, backups, rollbacks — are in
+[DEPLOY.md](DEPLOY.md). The design for user accounts is in
+[MULTI_USER_PLAN.md](MULTI_USER_PLAN.md).
 
 ## Concepts
 
