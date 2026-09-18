@@ -16,12 +16,12 @@ preserving today's login-free behaviour, rather than in a fork.
 
 | Area | Today | Implication |
 |---|---|---|
-| Identity | none — the API is open to anyone who can reach the port | everything below is new |
+| Identity | ~~none — the API is open to anyone who can reach the port~~ — **done in phase 1**: `AUTH_MODE=multi` requires a session; `single` keeps the old behaviour | |
 | Top-level scope | `workspaces`, with `workspace_id` on projects/tasks/notes/ideas/boards | good news: the ownership column has a natural home one level up |
 | Active scope | ~~`activeWorkspaceId()` reads a **global** row in `settings` (26 call sites)~~ — **done in phase 0**: resolved once per request into `req.scope` | the value is still global; phase 1 moves it into the signed-in user's settings |
 | Settings | one global `settings` key/value table, including `anthropic_api_key` | must become per-user |
 | Fetch by id | ~~looked rows up by primary key with **no scope filter**~~ — **done in phase 0**: every accessor filters on the scope, and a test proves it | phase 1 adds `AND user_id = ?` in the same accessors |
-| Transport | plain HTTP on :3001, `app.use(cors())` allows every origin | both must change before accounts exist |
+| Transport | ~~plain HTTP on :3001, `app.use(cors())` allows every origin~~ — **done in phase 1**: CORS removed, multi mode refuses to start without TLS | |
 | Endpoints | 63 in `server/src/routes.js` | **done in phase 0**: each goes through a scoped accessor, asserted by `test/isolation.test.js` |
 
 **The central piece of work is not the login screen — it is making every query provably
@@ -92,11 +92,21 @@ ALTER TABLE workspaces ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE
 `workspaces.user_id` is the **single source of truth** for ownership — everything else
 already hangs off a workspace.
 
-Also stamp `user_id` on the direct children (`projects`, `tasks`, `notes`, `ideas`,
-`boards`) as a denormalised copy. It is redundant by design: it means a filter can be
-written without a join, so the cheap query is also the safe one, and a forgotten join
-cannot leak rows. Keep them consistent with triggers or with a single insert helper —
-never by hand at each call site.
+**Changed during implementation: there is no denormalised `user_id` on the child tables.**
+The original plan called for stamping `projects`, `tasks`, `notes`, `ideas` and `boards`
+with a redundant copy, on the argument that the cheap query would then also be the safe
+one. Phase 0 made that unnecessary and phase 1 made it actively worse:
+
+- Every query already goes through an accessor that filters on `scope.workspaceId`, and
+  `scope.js` proves on each request that the workspace belongs to the user. One column,
+  checked once, covers every table.
+- A second copy of the truth is a second thing that can be wrong. A denormalised
+  `user_id` that drifts — a move that updates one table and not another — fails *open*,
+  which is the worst direction for an ownership check.
+
+The queries that must still name the user are few and deliberately easy to audit: the
+workspace accessors, the `*Anywhere` accessors used by the move endpoints, and the
+scratch note. `scope.js` documents the invariant in full.
 
 ```sql
 CREATE INDEX IF NOT EXISTS idx_workspaces_user ON workspaces(user_id);
@@ -108,12 +118,11 @@ Grandchildren (`subtasks`, `task_dependencies`, `epics`, `user_stories`, `board_
 stay unstamped and are reached only through a parent that has already been ownership-checked
 (§5).
 
-**One exception needs deliberate handling: the scratch note.** It is a single global row
-(`notes.is_scratch = 1`, `workspace_id` NULL) shared by every workspace on purpose, and
-phase 0 preserved that. Shared between *workspaces* is a feature; shared between *users* is
-a data leak, so phase 1 must give it a `user_id` (or hold its id in each user's settings)
-at the same time as the rest of the ownership work. `server/src/data/notes.js` carries a
-comment saying so.
+**The scratch note** was the one exception, and phase 1 handled it: `notes.user_id` is set
+on scratch rows only, so the pad still follows a person across all of their workspaces
+(the feature) without following them between accounts (the leak). Both halves are asserted
+— `isolation.test.js` checks it is shared across one person's workspaces,
+`user-isolation.test.js` checks it is not shared between people.
 
 ---
 
@@ -229,12 +238,13 @@ handler runs:
 app.use('/api', attachScope, router);   // req.scope = { workspaceId }
 ```
 
-The 26 global `activeWorkspaceId()` call sites are gone. Phase 1 adds `userId` to that
-object, sourced from the session, and takes `workspaceId` from the user's own
-`active_workspace_id` in `user_settings` — which is what ends the last-writer-wins race
-between two people using one server.
+The 26 global `activeWorkspaceId()` call sites are gone. `scope` is now
+`{ userId, workspaceId }`, with `workspaceId` read from that user's own
+`active_workspace_id` in `user_settings` and **validated against `workspaces.user_id` on
+every request** — the invariant the rest of the data layer rests on. A test writes a
+hostile value straight into the database and asserts the scope heals rather than grants.
 
-### 5.2 Auth middleware — phase 1
+### 5.2 Auth middleware — **done**
 
 ```js
 // server/src/auth.js
@@ -243,8 +253,8 @@ router.use(requireUser); // 401 if absent; in AUTH_MODE=single, attachUser
                          // always sets user #1 so this is a no-op
 ```
 
-`attachScope` then reads `req.user` instead of the global setting. Nothing in
-`routes.js` changes.
+`attachScope` reads `req.user` and resolves that user's own active workspace. Nothing in
+`routes.js` changed when it landed — which was the whole point of phase 0.
 
 ### 5.3 Ownership-checked accessors — **done**
 
@@ -426,14 +436,19 @@ Each phase is independently shippable and leaves the app working.
 | Phase | Content | Rough size |
 |---|---|---|
 | **0 — Scoping refactor** ✅ | Request scope object; all SQL moved into `src/data/*` behind scoped accessors; `createApp()` exported; isolation test harness. | **Done.** It also fixed today's cross-workspace by-id reads as a side effect. |
-| **1 — Accounts** | `users`, `sessions`, `user_settings`, `app_settings`; scrypt hashing; login/logout/me; `AUTH_MODE`; `userId` in the scope and in every accessor; per-user settings; **a per-user scratch note** (see §2); migration + setup screen; login/account UI; drop open CORS. | Medium-large. |
-| **2 — Hardening** | Field encryption of API keys (§6.1); CSRF; rate limiting and lockout; secure-cookie and TLS enforcement; the full 63-endpoint isolation test; session management UI. | Medium. |
+| **1 — Accounts** ✅ | `users`/`sessions`/`user_settings`/`app_settings`; scrypt passwords; opaque cookie sessions; `AUTH_MODE`; `userId` in the scope with the ownership invariant; per-user settings, API key and scratch note; login throttling and lockout; setup/login/account UI; CORS removed; TLS enforced in multi mode; JSON content-type required on mutating requests. | **Done.** |
+| **2 — Hardening** | Field encryption of stored secrets (§6.1) — the remaining piece, since API keys are still stored in clear; a double-submit CSRF token on top of the content-type rule; a session-management UI over the `/api/auth/sessions` endpoints that already exist. | Small–medium: lockout, TLS enforcement and the isolation suite moved into phase 1. |
 | **3 — MFA** | TOTP enrolment with QR, verification at login, encrypted recovery codes, step-up on password change. | Medium. |
 | **4 — Optional** | SQLCipher at rest (§6.2); password reset by email (needs SMTP config); invite tokens; per-user data export/delete. | Small each. |
 
 Phase 0 was the one to resist skipping: the only phase with no visible payoff, and the only
-one that makes the rest safe. With it in place, phase 1 is additive — a `user_id` column, a
-filter inside accessors that already exist, and the login surface — rather than a rewrite.
+one that makes the rest safe. That bet paid off — phase 1 added one ownership column, a
+validated scope, and the login surface, and `routes.js` needed no change at all beyond
+threading the scope into settings and AI calls.
+
+**Still outstanding before a multi-user instance holds anyone else's data in earnest:**
+stored Anthropic keys are not yet encrypted at rest (§6.1), there is no password reset
+(it needs SMTP), and MFA is phase 3.
 
 ## 10. Deliberately out of scope
 

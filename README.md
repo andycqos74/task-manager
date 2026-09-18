@@ -74,6 +74,19 @@ Full instructions — GHCR package visibility, Portainer, backups, rollbacks —
 [DEPLOY.md](DEPLOY.md). The design for user accounts is in
 [MULTI_USER_PLAN.md](MULTI_USER_PLAN.md).
 
+## User accounts
+
+By default the app runs in **single-user mode**: no sign-in, one implicit
+owner, exactly as it has always worked. Set `AUTH_MODE=multi` and the same
+build becomes multi-user — email and password sign-in, with each account
+getting entirely separate workspaces, projects, tasks, notes, boards, settings
+and Anthropic API key. Nothing is shared between accounts.
+
+Multi-user mode requires TLS (the server refuses to start without it) because
+it issues a session cookie. See [DEPLOY.md](DEPLOY.md) for the setup, and
+[MULTI_USER_PLAN.md](MULTI_USER_PLAN.md) for the design and what is still to
+come (MFA, encryption of stored secrets, password reset).
+
 ## Concepts
 
 - **Workspaces** — the top level: each keeps its own projects, tasks, notes, ideas, bugs,
@@ -131,12 +144,14 @@ configured or a call fails.
 
 ```
 server/   Express + better-sqlite3 (data in server/data/tasks.db)
-  index.js        starts the server
-  src/app.js      builds the express app (exported so tests drive the real one)
-  src/scope.js    per-request scope: whose data this request may touch
-  src/routes.js   REST API (/api/...) — validation and orchestration, no SQL
-  src/data/*.js   every query, each one filtered by the request scope
-  src/db.js       schema + settings
+  index.js          starts the server
+  src/app.js        builds the express app (exported so tests drive the real one)
+  src/auth.js       passwords, sessions, AUTH_MODE, the auth middleware
+  src/auth-routes.js  /api/auth/... — setup, login, logout, password, sessions
+  src/scope.js      per-request scope: whose data this request may touch
+  src/routes.js     REST API (/api/...) — validation and orchestration, no SQL
+  src/data/*.js     every query, each one filtered by the request scope
+  src/db.js         schema + migrations
   src/dates.js    date maths incl. the Do-date default rule
   src/scoring.js  rule-based ranking / fallback planner
   src/ai.js       Claude API integration
@@ -145,11 +160,15 @@ client/   React + Vite, no UI framework (styling is a deliberate later pass)
 
 The split between `routes.js` and `src/data/` is load-bearing rather than
 cosmetic: an accessor cannot be called without a scope, so an endpoint cannot
-read or write a row outside the active workspace even if the handler forgets to
-check. `test/isolation.test.js` calls every id-taking endpoint with another
-workspace's ids and asserts it refuses, and asserts that `routes.js` contains no
-SQL of its own. That is the groundwork for user accounts — see
-[MULTI_USER_PLAN.md](MULTI_USER_PLAN.md).
+read or write a row outside the caller's reach even if the handler forgets to
+check. Ownership is recorded in exactly one column — `workspaces.user_id` — and
+`src/scope.js` proves on every request that the active workspace belongs to the
+caller, which is what lets every other query filter on the workspace alone.
+
+`test/cross-scope.js` holds one table of refusal cases that two suites run:
+`isolation.test.js` against two workspaces, `user-isolation.test.js` against two
+accounts. So an endpoint that is safe against a workspace switch but not against
+a different person cannot pass one and fail silently in the other.
 
 Run server unit tests with `npm test`.
 

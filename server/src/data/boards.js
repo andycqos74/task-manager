@@ -18,9 +18,12 @@ export function getBoard(scope, id) {
 }
 
 // Only for the move endpoint, which re-reads the board after it has left the
-// active workspace. Phase 1 restricts this to the owner's own workspaces.
+// active workspace. Still bounded by the owner.
 export function getBoardAnywhere(scope, id) {
-  const board = db.prepare('SELECT * FROM boards WHERE id = ?').get(Number(id));
+  const board = db
+    .prepare(`SELECT b.* FROM boards b JOIN workspaces w ON w.id = b.workspace_id
+              WHERE b.id = ? AND w.user_id = ?`)
+    .get(Number(id), scope.userId);
   return board ? { ...board, columns: columnsOf(board.id) } : null;
 }
 

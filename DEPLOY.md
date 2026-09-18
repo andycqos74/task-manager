@@ -149,6 +149,56 @@ docker run --rm -v task-manager-data:/data -v "$PWD":/backup alpine \
 
 > ⚠️ Only `docker compose down -v` (with `-v`) deletes the volume and wipes your data.
 
+## Running with user accounts
+
+The same image runs two ways, chosen by `AUTH_MODE`:
+
+| | `single` (default) | `multi` |
+|---|---|---|
+| Sign-in | none — one implicit owner | email + password |
+| Data | one person's | fully separate per account |
+| Settings & API key | the owner's | each account's own |
+| TLS | optional | **required** |
+
+Nothing changes for an existing deployment: leave `AUTH_MODE` unset and it
+behaves exactly as before. The first start creates the implicit owner and hands
+them everything already in the database — projects, tasks, notes, the scratch
+pad, the workday settings and the stored Anthropic key.
+
+### Standing up a multi-user instance
+
+Multi-user mode sends a session cookie, which is readable by anyone on the
+network path unless the connection is encrypted. **The server refuses to start
+in `multi` mode without TLS**, and the fix is a reverse proxy in front:
+
+```bash
+# .env, alongside a proxy terminating TLS on this host
+AUTH_MODE=multi
+TRUST_PROXY=1            # marks the session cookie Secure
+ALLOW_REGISTRATION=false # the owner adds accounts; sign-up is not open
+DATA_VOLUME=task-manager-mu-data   # its own database, separate from the personal stack
+HOST_PORT=3002
+```
+
+```bash
+docker compose up -d
+```
+
+Then open the app: with no accounts yet it shows a one-time **setup screen**.
+The first account created becomes the owner and adopts anything already in that
+database — on a fresh volume, that is nothing.
+
+To run it beside the existing personal instance on one host, give it its own
+`DATA_VOLUME`, `HOST_PORT` and `CONTAINER_NAME`; both pull the same image.
+
+> Running multi-user without TLS is possible with `ALLOW_INSECURE=1`, but only
+> do that on a trusted private network. Session cookies and passwords travel in
+> clear text over plain HTTP.
+
+**AI keys:** each account holds its own key in Settings. A key in
+`ANTHROPIC_API_KEY` is an instance-wide fallback that *every* account can spend
+— set `AI_ENV_KEY_SHARED=0` to restrict AI to accounts that supply their own.
+
 ## Deploying via Portainer
 
 Portainer no longer needs to build anything, which removes the most common failure mode

@@ -1,13 +1,14 @@
 // Note data access.
 //
 // Saved notes belong to a workspace. The scratch pad is the one deliberate
-// exception: a single global note (workspace_id NULL, is_scratch 1) shared by
-// every workspace, so it is reachable from any scope.
+// exception: it is shared across all of one person's workspaces
+// (workspace_id NULL, is_scratch 1), so it is reachable from any of their
+// scopes — but it is theirs alone, keyed by notes.user_id. Shared between
+// workspaces is the feature; shared between people would be a leak, so
+// user_id is what every scratch query filters on.
 //
-// NOTE FOR PHASE 1: that exception does not survive user accounts — a global
-// scratch note would be shared between people. It has to become one scratch
-// note per user (a user_id column, or a per-user settings key holding its id)
-// at the same time as the rest of the ownership work.
+// notes.user_id is meaningful ONLY for scratch rows. Ordinary notes leave it
+// NULL and are owned through their workspace, like everything else.
 import { db } from '../db.js';
 
 const NOTE_SELECT = `SELECT n.*, p.name AS project_name, t.title AS task_title
@@ -31,8 +32,9 @@ function hydrateNote(row) {
 export function getNote(scope, id) {
   if (!Number.isFinite(Number(id))) return null;
   return hydrateNote(
-    db.prepare(`${NOTE_SELECT} WHERE n.id = ? AND (n.workspace_id = ? OR n.is_scratch = 1)`)
-      .get(Number(id), scope.workspaceId) || null,
+    db.prepare(`${NOTE_SELECT}
+                WHERE n.id = ? AND (n.workspace_id = ? OR (n.is_scratch = 1 AND n.user_id = ?))`)
+      .get(Number(id), scope.workspaceId, scope.userId) || null,
   );
 }
 
@@ -50,9 +52,13 @@ export function listNotes(scope, { standalone = false, taskId = null, projectId 
 }
 
 export function getScratchNote(scope) {
-  let row = db.prepare('SELECT id FROM notes WHERE is_scratch = 1 ORDER BY id LIMIT 1').get();
+  let row = db.prepare('SELECT id FROM notes WHERE is_scratch = 1 AND user_id = ? ORDER BY id LIMIT 1')
+    .get(scope.userId);
   if (!row) {
-    row = { id: db.prepare("INSERT INTO notes (title, is_scratch) VALUES ('Scratch', 1)").run().lastInsertRowid };
+    row = {
+      id: db.prepare("INSERT INTO notes (title, is_scratch, user_id) VALUES ('Scratch', 1, ?)")
+        .run(scope.userId).lastInsertRowid,
+    };
   }
   return getNote(scope, row.id);
 }

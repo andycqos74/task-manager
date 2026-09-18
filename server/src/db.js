@@ -157,6 +157,57 @@ CREATE TABLE IF NOT EXISTS board_columns (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ---------- accounts ----------
+-- One row per person. Everything they own hangs off workspaces.user_id, which
+-- is the single source of truth for ownership (see the invariant in scope.js).
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,              -- stored lowercased and trimmed
+  password_hash TEXT NOT NULL,             -- see auth.js; '!' means "cannot log in"
+  display_name TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('owner','user')),
+  is_active INTEGER NOT NULL DEFAULT 1,
+  -- brute-force throttling
+  failed_logins INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,
+  -- MFA (phase 3). The columns exist now so the table shape stops changing.
+  totp_secret_enc TEXT,
+  totp_enabled INTEGER NOT NULL DEFAULT 0,
+  recovery_codes_enc TEXT,
+  password_changed_at TEXT,
+  last_login_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Opaque server-side sessions. The cookie carries a random token; only its
+-- SHA-256 is stored, so a stolen database yields no usable sessions.
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL,
+  user_agent TEXT,
+  ip TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- Per-user replacement for the old global settings table: workday hours,
+-- the Anthropic key, the active workspace.
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  PRIMARY KEY (user_id, key)
+);
+
+-- Instance-wide configuration that is nobody's personal setting.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_board_columns_board ON board_columns(board_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -192,6 +243,14 @@ ensureColumn('tasks', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
 for (const table of ['projects', 'tasks', 'notes', 'ideas', 'boards']) {
   ensureColumn(table, 'workspace_id', 'workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE');
 }
+// Ownership. `workspaces.user_id` is the only place ownership is recorded:
+// everything else is reached through a workspace, so one column cannot drift
+// out of step with another. `notes.user_id` is the single exception and is
+// meaningful only for scratch rows, which are the one kind of note that is not
+// workspace-scoped.
+ensureColumn('workspaces', 'user_id', 'user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+ensureColumn('notes', 'user_id', 'user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+
 // Indexes on retrofitted columns created after the column is guaranteed to exist.
 db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_story ON tasks(story_id);');
 db.exec('CREATE INDEX IF NOT EXISTS idx_ideas_kind ON ideas(kind);');
@@ -202,6 +261,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_notes_workspace ON notes(workspace_id);
   CREATE INDEX IF NOT EXISTS idx_ideas_workspace ON ideas(workspace_id);
   CREATE INDEX IF NOT EXISTS idx_boards_workspace ON boards(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_workspaces_user ON workspaces(user_id);
+  CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
 `);
 
 // Align dev_stage with status for tasks predating the column (all default to
@@ -214,67 +275,97 @@ db.exec(`
     WHERE dev_stage = 'backlog' AND status = 'in_progress';
 `);
 
-// Ensure at least one workspace exists, then adopt any pre-workspace rows into
-// it. Both steps are no-ops once done, so this is safe to re-run.
-let defaultWorkspaceId = db.prepare('SELECT id FROM workspaces ORDER BY sort_order, id LIMIT 1').get()?.id;
-if (!defaultWorkspaceId) {
-  defaultWorkspaceId = db.prepare('INSERT INTO workspaces (name) VALUES (?)').run('My Workspace').lastInsertRowid;
+// Adopt rows that predate the workspaces feature into a workspace. Idempotent
+// (it only touches NULLs), so it is safe to re-run.
+function adoptIntoWorkspace(workspaceId) {
+  for (const table of ['projects', 'tasks', 'ideas', 'boards']) {
+    db.prepare(`UPDATE ${table} SET workspace_id = ? WHERE workspace_id IS NULL`).run(workspaceId);
+  }
+  // Saved notes get adopted; the scratch pad is not workspace-scoped.
+  db.prepare('UPDATE notes SET workspace_id = ? WHERE workspace_id IS NULL AND is_scratch = 0').run(workspaceId);
 }
-// Saved notes get adopted; the scratch pad stays global (workspace_id NULL).
-db.prepare('UPDATE projects SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
-db.prepare('UPDATE tasks SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
-db.prepare('UPDATE ideas SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
-db.prepare('UPDATE boards SET workspace_id = ? WHERE workspace_id IS NULL').run(defaultWorkspaceId);
-db.prepare('UPDATE notes SET workspace_id = ? WHERE workspace_id IS NULL AND is_scratch = 0').run(defaultWorkspaceId);
 
-// Seed a default board for the first workspace only (leaves user edits alone).
 export const DEFAULT_BOARD_COLUMNS = [
   ['Backlog', 'backlog'], ['In Progress', 'in_progress'], ['In Review', 'in_review'],
   ['Done', 'done'], ['Deployed', 'deployed'],
 ];
+
 export function seedBoard(workspaceId, name = 'Development') {
   const boardId = db.prepare('INSERT INTO boards (workspace_id, name) VALUES (?,?)').run(workspaceId, name).lastInsertRowid;
   const addCol = db.prepare('INSERT INTO board_columns (board_id, name, stage, sort_order) VALUES (?,?,?,?)');
   DEFAULT_BOARD_COLUMNS.forEach(([n, stage], i) => addCol.run(boardId, n, stage, i));
   return boardId;
 }
-if (db.prepare('SELECT COUNT(*) AS c FROM boards').get().c === 0) seedBoard(defaultWorkspaceId);
 
-const DEFAULT_SETTINGS = {
+export const DEFAULT_USER_SETTINGS = {
   workday_minutes: '480',
   workday_start: '09:00',
 };
 
-const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
-for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
-// The active workspace is server-side state so every endpoint can scope to it
-// without the client having to pass it (and risk leaking across workspaces).
-insertSetting.run('active_workspace_id', String(defaultWorkspaceId));
+// ---------- instance-wide configuration ----------
 
-export function getSettings() {
-  const rows = db.prepare('SELECT key, value FROM settings').all();
-  const out = {};
-  for (const r of rows) out[r.key] = r.value;
-  out.workday_minutes = parseInt(out.workday_minutes, 10) || 480;
-  return out;
+export function getAppSetting(key) {
+  return db.prepare('SELECT value FROM app_settings WHERE key = ?').get(key)?.value ?? null;
 }
 
-export function setSetting(key, value) {
-  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+export function setAppSetting(key, value) {
+  db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
     .run(key, String(value));
 }
 
-// The id of the workspace all scoped queries run against. Falls back to the
-// first workspace if the stored one was deleted, self-healing the setting.
-export function activeWorkspaceId() {
-  const stored = Number(db.prepare(`SELECT value FROM settings WHERE key = 'active_workspace_id'`).get()?.value);
-  if (stored && db.prepare('SELECT 1 FROM workspaces WHERE id = ?').get(stored)) return stored;
-  const first = db.prepare('SELECT id FROM workspaces ORDER BY sort_order, id LIMIT 1').get();
-  const id = first ? first.id : db.prepare('INSERT INTO workspaces (name) VALUES (?)').run('My Workspace').lastInsertRowid;
-  setSetting('active_workspace_id', id);
-  return id;
+export function userCount() {
+  return db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
 }
 
-export function deleteSetting(key) {
-  db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+// ---------- first run / adoption ----------
+
+// Hand everything that has no owner to `userId`, and make sure they have
+// somewhere to work. Called once when the first account is created — on a
+// fresh database it just seeds a workspace, and on an existing one it adopts
+// the data that was there before accounts existed.
+//
+// Idempotent in the parts that matter (the UPDATEs only touch NULLs), so a
+// half-finished first run can be repeated.
+export function adoptOrphanData(userId) {
+  db.transaction(() => {
+    let workspaceId = db.prepare('SELECT id FROM workspaces WHERE user_id IS NULL ORDER BY sort_order, id LIMIT 1').get()?.id;
+    if (!workspaceId) {
+      const owned = db.prepare('SELECT id FROM workspaces WHERE user_id = ? ORDER BY sort_order, id LIMIT 1').get(userId);
+      workspaceId = owned ? owned.id : db.prepare('INSERT INTO workspaces (name, user_id) VALUES (?,?)')
+        .run('My Workspace', userId).lastInsertRowid;
+    }
+    db.prepare('UPDATE workspaces SET user_id = ? WHERE user_id IS NULL').run(userId);
+    adoptIntoWorkspace(workspaceId);
+    db.prepare('UPDATE notes SET user_id = ? WHERE is_scratch = 1 AND user_id IS NULL').run(userId);
+    if (db.prepare('SELECT COUNT(*) AS c FROM boards WHERE workspace_id = ?').get(workspaceId).c === 0) {
+      seedBoard(workspaceId);
+    }
+    // Carry the old global settings — including the Anthropic API key — over
+    // to the first account, so upgrading in place loses nothing.
+    for (const row of db.prepare('SELECT key, value FROM settings').all()) {
+      db.prepare('INSERT OR IGNORE INTO user_settings (user_id, key, value) VALUES (?,?,?)').run(userId, row.key, row.value);
+    }
+    for (const [k, v] of Object.entries(DEFAULT_USER_SETTINGS)) {
+      db.prepare('INSERT OR IGNORE INTO user_settings (user_id, key, value) VALUES (?,?,?)').run(userId, k, v);
+    }
+    db.prepare(`UPDATE user_settings SET value = ? WHERE user_id = ? AND key = 'active_workspace_id'`)
+      .run(String(workspaceId), userId);
+    db.prepare('INSERT OR IGNORE INTO user_settings (user_id, key, value) VALUES (?,?,?)')
+      .run(userId, 'active_workspace_id', String(workspaceId));
+  })();
+}
+
+// Everything a brand-new account starts with: one workspace and its board.
+export function seedNewUser(userId) {
+  return db.transaction(() => {
+    const workspaceId = db.prepare('INSERT INTO workspaces (name, user_id) VALUES (?,?)')
+      .run('My Workspace', userId).lastInsertRowid;
+    seedBoard(workspaceId);
+    for (const [k, v] of Object.entries(DEFAULT_USER_SETTINGS)) {
+      db.prepare('INSERT OR IGNORE INTO user_settings (user_id, key, value) VALUES (?,?,?)').run(userId, k, v);
+    }
+    db.prepare('INSERT OR IGNORE INTO user_settings (user_id, key, value) VALUES (?,?,?)')
+      .run(userId, 'active_workspace_id', String(workspaceId));
+    return workspaceId;
+  })();
 }

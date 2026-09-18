@@ -18,8 +18,23 @@ services:
       # host:container — open http://localhost:3001 in your browser.
       - "${HOST_PORT:-3001}:3001"
     environment:
+      # single = no login screen, one implicit owner (the personal deployment).
+      # multi  = email + password accounts, each with their own data.
+      - AUTH_MODE=${AUTH_MODE:-single}
+      # Required for AUTH_MODE=multi behind a TLS-terminating reverse proxy:
+      # it is what makes the session cookie Secure. Without TLS the server
+      # refuses to start in multi mode unless ALLOW_INSECURE=1.
+      - TRUST_PROXY=${TRUST_PROXY:-}
+      - ALLOW_INSECURE=${ALLOW_INSECURE:-}
+      # Whether anyone who can reach the URL may create an account.
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+      - SESSION_TTL_DAYS=${SESSION_TTL_DAYS:-30}
       # AI planning is optional. Leave unset to use the built-in rule engine.
+      # In multi mode each account can hold its own key in Settings; this one
+      # is an instance-wide fallback everyone would spend, so set
+      # AI_ENV_KEY_SHARED=0 to restrict AI to users who supply their own.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - AI_ENV_KEY_SHARED=${AI_ENV_KEY_SHARED:-}
       - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-opus-4-8}
     volumes:
       # Persists the SQLite database (server writes to DATA_DIR=/data).

@@ -72,9 +72,12 @@ export function getTask(scope, id) {
 
 // Reaches outside the active workspace, so it is only for the move endpoints:
 // once a task has moved, re-reading it by the active workspace would find
-// nothing. Phase 1 restricts this to the owner's own workspaces.
+// nothing. Still bounded by the owner — it joins workspaces to say so.
 export function getTaskAnywhere(scope, id) {
-  const row = db.prepare(`${TASK_SELECT} WHERE t.id = ?`).get(id);
+  const row = db
+    .prepare(`${TASK_SELECT} JOIN workspaces w ON w.id = t.workspace_id
+              WHERE t.id = ? AND w.user_id = ?`)
+    .get(id, scope.userId);
   return row ? hydrateTasks([row])[0] : null;
 }
 

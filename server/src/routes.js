@@ -9,7 +9,7 @@ import { Router } from 'express';
 import { todayISO, addDays, computeDoDate, isValidISODate } from './dates.js';
 import { rankTasks } from './scoring.js';
 import { aiAvailable, planMyDay, prioritise } from './ai.js';
-import { currentScope } from './scope.js';
+import { scopeForUser } from './scope.js';
 import { getSettings, setSetting, deleteSetting } from './data/settings.js';
 import * as Workspaces from './data/workspaces.js';
 import * as Projects from './data/projects.js';
@@ -88,7 +88,7 @@ router.delete('/workspaces/:id', (req, res) => {
   if (Workspaces.countWorkspaces(req.scope) <= 1) return badRequest(res, 'cannot delete the only workspace');
   Workspaces.deleteWorkspace(req.scope, ws);
   // Re-resolve: the active workspace self-heals if the deleted one was it.
-  res.json({ ok: true, active_id: currentScope().workspaceId });
+  res.json({ ok: true, active_id: scopeForUser(req.scope.userId).workspaceId });
 });
 
 router.post('/workspaces/:id/activate', (req, res) => {
@@ -204,7 +204,7 @@ router.post('/tasks', (req, res) => {
   const recurrence = validateRecurrence(b.recurrence);
   if (recurrence === undefined) return badRequest(res, 'invalid recurrence');
   const tags = normaliseTags(b.tags) || [];
-  const settings = getSettings();
+  const settings = getSettings(req.scope);
 
   // A task linked to a user story is a dev task: it inherits the story's
   // project and gets the "development" tag so it stays findable in the
@@ -256,7 +256,7 @@ router.patch('/tasks/:id', (req, res) => {
   const task = Tasks.getTask(req.scope, req.params.id);
   if (!task) return notFound(res, 'task');
   const b = req.body || {};
-  const settings = getSettings();
+  const settings = getSettings(req.scope);
   if ('priority' in b && !PRIORITIES.includes(b.priority)) return badRequest(res, 'invalid priority');
   if ('status' in b && !TASK_STATUSES.includes(b.status)) return badRequest(res, 'invalid status');
   if ('dev_stage' in b && !DEV_STATUSES.includes(b.dev_stage)) return badRequest(res, 'invalid dev_stage');
@@ -456,7 +456,7 @@ router.put('/tasks/:id/dependencies', (req, res) => {
 // My Day: tasks flagged for today plus tasks whose do date has arrived.
 router.get('/views/my-day', (req, res) => {
   const today = todayISO();
-  const settings = getSettings();
+  const settings = getSettings(req.scope);
   const open = Tasks.listOpenTasks(req.scope);
   const tasks = open.filter((t) => t.in_my_day);
   const ranked = rankTasks(tasks, today).map((r) => ({ ...r.task, score_reasons: r.reasons }));
@@ -1026,59 +1026,59 @@ router.get('/tags', (req, res) => {
 // GET/PATCH never echo it back, only whether one is configured, where it
 // came from, and its last 4 characters so the user can confirm which key is
 // active without re-reading the secret itself.
-function publicSettings() {
-  const s = getSettings();
+function publicSettings(scope) {
+  const s = getSettings(scope);
   const dbKey = (s.anthropic_api_key || '').trim();
   const hasDbKey = !!dbKey;
   const hasEnvKey = !!process.env.ANTHROPIC_API_KEY;
   return {
     workday_minutes: s.workday_minutes,
     workday_start: s.workday_start,
-    ai_available: aiAvailable(),
+    ai_available: aiAvailable(scope),
     ai_key_source: hasDbKey ? 'settings' : hasEnvKey ? 'env' : 'none',
     ai_key_last4: hasDbKey ? dbKey.slice(-4) : null,
     ai_prompt: s.ai_prompt || '',
   };
 }
 
-router.get('/settings', (req, res) => res.json(publicSettings()));
+router.get('/settings', (req, res) => res.json(publicSettings(req.scope)));
 
 router.patch('/settings', (req, res) => {
   const b = req.body || {};
   if ('workday_minutes' in b) {
     const v = Number(b.workday_minutes);
     if (!Number.isInteger(v) || v < 60 || v > 1440) return badRequest(res, 'workday_minutes must be 60-1440');
-    setSetting('workday_minutes', v);
+    setSetting(req.scope, 'workday_minutes', v);
   }
-  if ('workday_start' in b) setSetting('workday_start', String(b.workday_start));
+  if ('workday_start' in b) setSetting(req.scope, 'workday_start', String(b.workday_start));
   if ('anthropic_api_key' in b) {
     if (typeof b.anthropic_api_key !== 'string') return badRequest(res, 'anthropic_api_key must be a string');
     const key = b.anthropic_api_key.trim();
     if (key.length > 300) return badRequest(res, 'API key is too long');
-    if (key) setSetting('anthropic_api_key', key);
-    else deleteSetting('anthropic_api_key');
+    if (key) setSetting(req.scope, 'anthropic_api_key', key);
+    else deleteSetting(req.scope, 'anthropic_api_key');
   }
   if ('ai_prompt' in b) {
     if (typeof b.ai_prompt !== 'string') return badRequest(res, 'ai_prompt must be a string');
     const prompt = b.ai_prompt.trim();
     if (prompt.length > 2000) return badRequest(res, 'AI instructions are too long (max 2000 characters)');
-    if (prompt) setSetting('ai_prompt', prompt);
-    else deleteSetting('ai_prompt');
+    if (prompt) setSetting(req.scope, 'ai_prompt', prompt);
+    else deleteSetting(req.scope, 'ai_prompt');
   }
-  res.json(publicSettings());
+  res.json(publicSettings(req.scope));
 });
 
-router.get('/ai/status', (req, res) => res.json({ available: aiAvailable() }));
+router.get('/ai/status', (req, res) => res.json({ available: aiAvailable(req.scope) }));
 
 router.post('/ai/plan-day', async (req, res) => {
-  const settings = getSettings();
-  const result = await planMyDay(Tasks.listOpenTasks(req.scope), todayISO(), settings.workday_minutes);
+  const settings = getSettings(req.scope);
+  const result = await planMyDay(req.scope, Tasks.listOpenTasks(req.scope), todayISO(), settings.workday_minutes);
   res.json(result);
 });
 
 router.post('/ai/prioritise', async (req, res) => {
   let tasks = Tasks.listOpenTasks(req.scope);
   if (req.body?.project_id) tasks = tasks.filter((t) => t.project_id === Number(req.body.project_id));
-  const result = await prioritise(tasks, todayISO());
+  const result = await prioritise(req.scope, tasks, todayISO());
   res.json(result);
 });

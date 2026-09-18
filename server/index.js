@@ -1,7 +1,8 @@
-import { createApp } from './src/app.js';
+import { bootstrap, createApp } from './src/app.js';
 
 const PORT = process.env.PORT || 3001;
 
+bootstrap();
 createApp().listen(PORT, () => {
   console.log(`Task manager API listening on http://localhost:${PORT}`);
 });

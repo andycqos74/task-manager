@@ -35,10 +35,13 @@ export function getProject(scope, id) {
 }
 
 // Only for the move endpoints, which have to see the destination workspace's
-// projects. Phase 1 restricts this to the owner's own workspaces.
+// projects. Still bounded by the owner.
 export function getProjectAnywhere(scope, id) {
   if (!Number.isFinite(Number(id))) return null;
-  return db.prepare('SELECT * FROM projects WHERE id = ?').get(Number(id)) || null;
+  return db
+    .prepare(`SELECT p.* FROM projects p JOIN workspaces w ON w.id = p.workspace_id
+              WHERE p.id = ? AND w.user_id = ?`)
+    .get(Number(id), scope.userId) || null;
 }
 
 export function createProject(scope, f) {
