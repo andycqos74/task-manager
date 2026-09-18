@@ -238,6 +238,96 @@ router.delete('/projects/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// The ids of every task that belongs to a project: filed against it directly,
+// or hanging off one of its user stories (dev tasks). Used by the workspace
+// move so both routes into the project travel together.
+const PROJECT_TASK_IDS = `SELECT id FROM tasks WHERE project_id = @pid
+  UNION
+  SELECT t.id FROM tasks t
+    JOIN user_stories s ON s.id = t.story_id
+    JOIN epics e ON e.id = s.epic_id
+   WHERE e.project_id = @pid`;
+
+// Resolve the destination workspace of a move request. Answers the request
+// itself (and returns null) when workspace_id is missing or unknown.
+function resolveMoveTarget(req, res) {
+  const raw = (req.body || {}).workspace_id;
+  if (raw == null || !Number.isFinite(Number(raw))) {
+    badRequest(res, 'workspace_id is required');
+    return null;
+  }
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(Number(raw));
+  if (!ws) {
+    badRequest(res, 'workspace not found');
+    return null;
+  }
+  return ws;
+}
+
+// Move a project to another workspace with everything it owns: its tasks
+// (including the dev tasks reached through epic -> story), its epics and
+// stories (which follow the project by project_id), the ideas and bugs filed
+// against it, and the notes attached to it or to one of its tasks. Boards are
+// workspace-level and cross-project, so they stay put — the moved cards simply
+// show up on the destination workspace's boards (use POST /boards/:id/move to
+// take a board across too).
+router.post('/projects/:id/move', (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'project not found' });
+  const target = resolveMoveTarget(req, res);
+  if (!target) return undefined;
+
+  const counts = { tasks: 0, epics: 0, stories: 0, ideas: 0, bugs: 0, notes: 0, dropped_dependencies: 0 };
+  if (project.workspace_id !== target.id) {
+    const pid = project.id;
+    const params = { pid, ws: target.id };
+    db.transaction(() => {
+      // A dependency with one end in the project and the other outside it would
+      // straddle two workspaces once the project has moved, so drop it.
+      counts.dropped_dependencies = db
+        .prepare(`DELETE FROM task_dependencies
+                  WHERE (task_id IN (${PROJECT_TASK_IDS})) <> (depends_on_id IN (${PROJECT_TASK_IDS}))`)
+        .run({ pid }).changes;
+      counts.notes = db
+        .prepare(`UPDATE notes SET workspace_id = @ws, updated_at = datetime('now')
+                  WHERE project_id = @pid OR task_id IN (${PROJECT_TASK_IDS})`)
+        .run(params).changes;
+      // The project and story links are normally both inside the project, but a
+      // task can be filed under one project while linked to a story in another.
+      // Whichever link would be left pointing at the old workspace is cleared,
+      // so nothing straddles the two.
+      counts.tasks = db
+        .prepare(`UPDATE tasks SET workspace_id = @ws,
+                    project_id = CASE WHEN project_id = @pid THEN project_id ELSE NULL END,
+                    story_id = CASE WHEN story_id IN (
+                        SELECT s.id FROM user_stories s JOIN epics e ON e.id = s.epic_id WHERE e.project_id = @pid
+                      ) THEN story_id ELSE NULL END,
+                    updated_at = datetime('now')
+                  WHERE id IN (${PROJECT_TASK_IDS})`)
+        .run(params).changes;
+      for (const kind of IDEA_KINDS) {
+        counts[kind === 'bug' ? 'bugs' : 'ideas'] = db
+          .prepare(`UPDATE ideas SET workspace_id = @ws, updated_at = datetime('now')
+                    WHERE project_id = @pid AND kind = @kind`)
+          .run({ ...params, kind }).changes;
+      }
+      db.prepare(`UPDATE projects SET workspace_id = ?, updated_at = datetime('now') WHERE id = ?`)
+        .run(target.id, pid);
+    })();
+    counts.epics = db.prepare('SELECT COUNT(*) AS c FROM epics WHERE project_id = ?').get(project.id).c;
+    counts.stories = db
+      .prepare('SELECT COUNT(*) AS c FROM user_stories WHERE epic_id IN (SELECT id FROM epics WHERE project_id = ?)')
+      .get(project.id).c;
+  }
+
+  res.json({
+    project: db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id),
+    workspace: target,
+    moved: counts,
+    active_id: activeWorkspaceId(),
+  });
+});
+
 // ---------- tasks ----------
 
 router.get('/tasks', (req, res) => {
@@ -480,6 +570,43 @@ router.delete('/tasks/:id', (req, res) => {
   const info = db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'task not found' });
   res.json({ ok: true });
+});
+
+// Move a single task to another workspace. Its project and user story live in
+// the old workspace, so those links are cleared unless `project_id` names a
+// project in the destination to file it under. Subtasks and notes attached to
+// the task travel with it; dependencies on tasks left behind are dropped.
+router.post('/tasks/:id/move', (req, res) => {
+  const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'task not found' });
+  const target = resolveMoveTarget(req, res);
+  if (!target) return undefined;
+
+  let projectId = null;
+  const wanted = (req.body || {}).project_id;
+  if (wanted != null) {
+    const p = db.prepare('SELECT * FROM projects WHERE id = ?').get(wanted);
+    if (!p) return badRequest(res, 'project not found');
+    if (p.workspace_id !== target.id) return badRequest(res, 'project is not in the destination workspace');
+    projectId = p.id;
+  }
+
+  const counts = { notes: 0, dropped_dependencies: 0 };
+  if (task.workspace_id !== target.id) {
+    db.transaction(() => {
+      counts.dropped_dependencies = db
+        .prepare('DELETE FROM task_dependencies WHERE task_id = ? OR depends_on_id = ?')
+        .run(task.id, task.id).changes;
+      counts.notes = db
+        .prepare(`UPDATE notes SET workspace_id = ?, updated_at = datetime('now') WHERE task_id = ?`)
+        .run(target.id, task.id).changes;
+      db.prepare(`UPDATE tasks SET workspace_id = ?, project_id = ?, story_id = NULL, updated_at = datetime('now')
+                  WHERE id = ?`)
+        .run(target.id, projectId, task.id);
+    })();
+  }
+
+  res.json({ task: getTask(task.id), workspace: target, moved: counts, active_id: activeWorkspaceId() });
 });
 
 // One-click My Day toggle.
@@ -1164,6 +1291,22 @@ router.delete('/boards/:id', (req, res) => {
   if (!board) return res.status(404).json({ error: 'board not found' });
   db.prepare('DELETE FROM boards WHERE id = ?').run(board.id); // cascades to columns
   res.json({ ok: true });
+});
+
+// Move a board (with its columns) to another workspace. Boards are containers
+// of columns, not of cards — the cards shown are always the ones living in the
+// board's workspace, so a moved board renders the destination's work.
+router.post('/boards/:id/move', (req, res) => {
+  const board = db.prepare('SELECT * FROM boards WHERE id = ?').get(req.params.id);
+  if (!board) return res.status(404).json({ error: 'board not found' });
+  const target = resolveMoveTarget(req, res);
+  if (!target) return undefined;
+  if (board.workspace_id !== target.id) {
+    const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM boards WHERE workspace_id = ?').get(target.id).m;
+    db.prepare(`UPDATE boards SET workspace_id = ?, sort_order = ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(target.id, max + 1, board.id);
+  }
+  res.json({ board: getBoard(board.id), workspace: target, active_id: activeWorkspaceId() });
 });
 
 router.post('/boards/:id/columns', (req, res) => {

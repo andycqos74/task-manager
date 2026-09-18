@@ -94,7 +94,11 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   font-weight: 400; font-size: 34px; letter-spacing: 0.03em;
   color: oklch(90% 0.13 152); display: flex; align-items: center; line-height: 1; position: relative;
   animation: emberGlow 3.5s ease-in-out infinite;
+  /* It doubles as the link home (My Day), so reset the button chrome. */
+  border: none; background: transparent; padding: 0; cursor: pointer;
 }
+.brand-mark:hover { filter: brightness(1.12); }
+.brand-mark:focus-visible { outline: 2px solid oklch(80% 0.13 152); outline-offset: 4px; border-radius: 8px; }
 .brand-this { margin-left: 148px; }
 .brand-imp { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; margin: 0 4px; }
 .brand-imp img { position: relative; top: 1px; z-index: 2; filter: drop-shadow(0 0 14px oklch(70% 0.18 152 / 0.5)); }
@@ -454,7 +458,13 @@ button.danger:hover { background: var(--danger-light); }
   font-size: 14px; font-weight: 650; color: var(--text-primary); padding: 4px 2px; outline: none;
 }
 .tree-title:focus { border-bottom: 1px solid var(--card-border); }
-.tree-count { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.tree-badges { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.badge.count-badge {
+  background: var(--badge-bg); color: var(--text-secondary);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em;
+}
+.badge.count-badge.stories { background: var(--accent-light); color: var(--accent-dark); }
+.badge.count-badge.tasks.complete { background: var(--success-light); color: var(--success); }
 .dev-status {
   border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 12px;
   font-weight: 700; font-family: inherit; background: #fff; cursor: pointer; flex-shrink: 0;
@@ -465,7 +475,11 @@ button.danger:hover { background: var(--danger-light); }
 .danger-link { color: var(--danger); }
 .danger-link:hover { color: var(--danger-dark); }
 
-/* Ideas + bugs backlog */
+/* Move-to-workspace picker */
+.ws-move { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ws-move select { flex-shrink: 0; }
+
+/* Ideas + bugs */
 .idea-list { display: flex; flex-direction: column; gap: 8px; }
 .idea-card { background: #fff; border: 1px solid var(--card-border); border-left: 3px solid transparent; border-radius: 13px; overflow: hidden; }
 .idea-card.bug { border-left-color: var(--danger); }
@@ -592,14 +606,6 @@ button.danger:hover { background: var(--danger-light); }
 .col-config-add input { flex: 1; min-width: 120px; padding: 6px 9px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--text-primary); }
 .col-config-add select { padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 8px; font-size: 12.5px; font-family: inherit; color: var(--text-primary); background: #fff; }
 
-/* Notepad → Idea / → Bug buttons (mirror → Task) */
-.notepad-bar .to-idea-btn, .notepad-bar .to-bug-btn {
-  background: var(--sidebar-chip-bg); color: var(--sidebar-text); border: 1px solid var(--sidebar-chip-border);
-  border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; font-family: inherit;
-  cursor: pointer; white-space: nowrap;
-}
-.notepad-bar .to-idea-btn:hover, .notepad-bar .to-bug-btn:hover { background: oklch(36% 0.03 186); }
-
 .detail-parent { margin-bottom: 8px; }
 
 /* ---------- notepad dock (always visible, fixed beside sidebar) ---------- */
@@ -619,30 +625,128 @@ button.danger:hover { background: var(--danger-light); }
 .notepad-resize-grip { width: 44px; height: 4px; border-radius: 2px; background: oklch(42% 0.025 186); }
 .notepad-resize-handle:hover .notepad-resize-grip { background: oklch(56% 0.025 186); }
 
-.notepad-bar { display: flex; align-items: center; gap: 8px; padding: 8px 18px; flex-wrap: wrap; border-bottom: 1px solid var(--sidebar-border); flex-shrink: 0; }
+/* One scrolling row of grouped controls, split by hairline dividers. The two
+   wrappers inside are display:contents here so every control is a direct flex
+   item of the bar; below 640px they become the two stacked rows instead. */
+.notepad-bar {
+  display: flex; align-items: center; gap: 8px; height: 64px; padding: 0 20px; flex-shrink: 0;
+  border-bottom: 1px solid var(--sidebar-border);
+  overflow-x: auto; overflow-y: hidden;
+}
+.notepad-bar-lead, .notepad-bar-tools { display: contents; }
 .notepad-dock.collapsed .notepad-bar { border-bottom: none; }
+.notepad-divider { width: 1px; height: 24px; background: var(--sidebar-border); flex-shrink: 0; }
+
 .notepad-toggle {
   display: flex; align-items: center; gap: 8px; border: none; background: transparent;
-  font-weight: 800; font-size: 13.5px; color: var(--sidebar-text); letter-spacing: -0.01em; padding: 4px 6px;
+  border-radius: 8px; padding: 8px 10px; flex-shrink: 0;
+  font-size: 15px; font-weight: 650; color: var(--sidebar-text); letter-spacing: -0.01em;
 }
-.notepad-bar select, .notepad-bar input.notepad-title, .notepad-bar button.small {
-  background: var(--sidebar-chip-bg); color: var(--sidebar-text); border: 1px solid var(--sidebar-chip-border);
-  border-radius: 8px; padding: 6px 10px; font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: pointer;
-  margin: 0;
+.notepad-toggle:hover { background: oklch(1 0 0 / 0.06); }
+.notepad-caret { font-size: 10px; opacity: 0.6; }
+
+/* Plain ghost button (expand / shrink). */
+.notepad-ghost-btn {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  background: transparent; border: none; border-radius: 8px; padding: 8px 10px;
+  font-size: 13.5px; font-weight: 550; font-family: inherit; color: var(--sidebar-text-muted);
 }
-.notepad-bar select { max-width: 220px; }
-.notepad-title { min-width: 150px; cursor: text; font-weight: 700; }
-.notepad-bar button.small:hover { background: oklch(36% 0.03 186); }
-.notepad-bar .attach-select { color: oklch(80% 0.01 265); font-weight: 500; max-width: 220px; }
-.notepad-bar .to-task-btn {
-  background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 6px 12px;
-  font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap;
-  box-shadow: 0 4px 12px -4px oklch(60% 0.13 66 / 0.6);
+.notepad-ghost-btn:hover { background: oklch(1 0 0 / 0.06); color: var(--sidebar-text); }
+
+/* Current-note group: which note, its title, what it is attached to, + New. */
+.notepad-note-group {
+  display: flex; align-items: center; gap: 2px;
+  background: oklch(1 0 0 / 0.045); border-radius: 10px; padding: 4px;
 }
-.notepad-bar .to-task-btn:hover { background: var(--accent-dark); }
-.notepad-bar .link { color: var(--sidebar-text-muted); }
+/* Only the title gives up width when the row is tight (see below); the
+   pickers and the New button keep theirs, and the bar scrolls after that. */
+.notepad-note-group > * { flex-shrink: 0; }
+.notepad-bar .notepad-picker, .notepad-bar input.notepad-title {
+  background: transparent; border: none; border-radius: 7px; padding: 6px 10px; margin: 0;
+  font-size: 13.5px; font-weight: 550; font-family: inherit; color: var(--sidebar-text);
+  max-width: 220px; cursor: pointer;
+}
+/* Native select chrome off, hairline caret drawn in its place. */
+.notepad-bar .notepad-picker {
+  appearance: none; padding-right: 24px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 13px) 52%, calc(100% - 9px) 52%;
+  background-size: 4px 4px, 4px 4px; background-repeat: no-repeat;
+}
+.notepad-bar .notepad-picker:hover, .notepad-bar input.notepad-title:hover { background-color: oklch(1 0 0 / 0.08); }
+.notepad-bar .notepad-picker option { color: var(--text-primary); }
+/* 190px when there is room, shrinking to 90px before the bar starts to
+   scroll. width:0 is what makes it shrinkable — an input's intrinsic width
+   would otherwise hold the whole row at its full size. */
+.notepad-bar input.notepad-title { flex: 0 1 190px; width: 0; min-width: 90px; cursor: text; }
+/* Ring inside the pill rather than the browser's white outline on the dark bar. */
+.notepad-bar input.notepad-title:focus {
+  outline: none; background-color: oklch(1 0 0 / 0.08); box-shadow: inset 0 0 0 1px var(--sidebar-chip-border);
+}
+.notepad-bar .attach-select { color: oklch(80% 0.01 265); }
+.notepad-new-btn {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 2px;
+  background: var(--accent); color: var(--text-primary); border: none; border-radius: 7px; padding: 6px 12px;
+  font-size: 13.5px; font-weight: 650; font-family: inherit; white-space: nowrap;
+}
+.notepad-new-btn:hover { filter: brightness(1.08); }
+
+/* Convert cluster: a muted label and one outline pill per destination, each
+   led by a dot in that destination's colour. */
+.notepad-convert { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.notepad-convert-label {
+  color: var(--sidebar-text-muted); font-size: 12px; font-weight: 550;
+  white-space: nowrap; flex-shrink: 0; margin-right: 4px;
+}
+.convert-btn {
+  display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+  background: transparent; border: 1px solid var(--sidebar-border); border-radius: 8px; padding: 7px 12px;
+  font-size: 13.5px; font-weight: 550; font-family: inherit; color: var(--sidebar-text); white-space: nowrap;
+}
+.convert-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dot); flex-shrink: 0; }
+.convert-btn:hover { border-color: var(--dot); background: oklch(1 0 0 / 0.04); }
+.convert-btn.task { --dot: var(--accent); }
+.convert-btn.idea { --dot: var(--ai); }
+.convert-btn.bug { --dot: var(--danger); }
+
+.notepad-bar .link { color: var(--sidebar-text-muted); flex-shrink: 0; }
 .notepad-bar .link:hover { color: var(--sidebar-text); }
-.notepad-status { margin-left: auto; color: var(--sidebar-text-muted); font-size: 12px; white-space: nowrap; }
+
+/* Pinned right on wide screens (last in the row, whatever the markup order). */
+.notepad-status {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0; order: 1; margin-left: auto;
+  color: var(--sidebar-text-muted); font-size: 12.5px; white-space: nowrap;
+}
+.notepad-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.notepad-status.saving .notepad-status-dot { background: var(--warning); }
+.notepad-status.flash .notepad-status-dot { background: var(--accent); }
+
+/* Phone: a toggle/status row above a scrolling row of touch-sized chips. */
+@media (max-width: 640px) {
+  .notepad-bar { flex-direction: column; align-items: stretch; height: auto; gap: 0; padding: 0; overflow: visible; }
+  .notepad-bar-lead {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 6px;
+  }
+  .notepad-bar-tools {
+    display: flex; align-items: center; gap: 8px; padding: 6px 14px 12px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  /* Ungroup so New and the convert pills can be ordered into the chip row. */
+  .notepad-note-group, .notepad-convert { display: contents; }
+  .notepad-status { order: 0; margin-left: 0; }
+  .notepad-divider:not(.convert-divider), .notepad-convert-label, .notepad-size-btn .notepad-btn-label { display: none; }
+  .notepad-new-btn { order: -2; }
+  .notepad-size-btn { order: -1; }
+  .notepad-convert .convert-btn, .notepad-delete { order: 1; }
+  .notepad-delete { min-height: 44px; padding: 0 8px; } /* touch target */
+  .notepad-bar .notepad-picker, .notepad-bar input.notepad-title, .notepad-ghost-btn, .notepad-new-btn, .convert-btn {
+    background-color: oklch(1 0 0 / 0.06); border-radius: 9px; padding: 10px 12px; font-size: 13.5px;
+    min-height: 44px; /* touch target */
+  }
+  .notepad-bar .notepad-picker { padding-right: 26px; }
+  .notepad-new-btn { background-color: var(--accent); padding: 10px 14px; font-size: 14px; }
+  .convert-btn { background-color: transparent; }
+}
 
 /* Dark "page" you click anywhere on to start a note block — matches the
    sidebar background; only individual note blocks get the paper look. */

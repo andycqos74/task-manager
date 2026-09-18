@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { api, parseEstimate, formatEstimate, todayISO } from '../api.js';
 import { SunIcon } from '../icons.jsx';
+import WorkspaceMove from './WorkspaceMove.jsx';
 
 // Full task editor, shown as a right-hand panel. Every change saves
 // immediately (PATCH), so quick-captured tasks can be enriched over time.
-export default function TaskDetail({ taskId, projects, settings, onClose, onChanged, onError }) {
+export default function TaskDetail({ taskId, projects, settings, workspaces, activeWorkspaceId, onClose, onChanged, onError }) {
   const [task, setTask] = useState(null);
   const [estimateText, setEstimateText] = useState('');
   const [newSubtask, setNewSubtask] = useState('');
@@ -111,8 +112,23 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
     }
   }
 
+  // A task travels alone: its project and user story stay in the workspace it
+  // came from, so both links are cleared and the panel closes with the task.
+  async function moveToWorkspace(workspaceId) {
+    const target = workspaces.find((w) => w.id === workspaceId);
+    const detail = task.project_id || task.story_id ? ' It leaves its project and story behind.' : '';
+    if (!confirm(`Move "${task.title}" to ${target ? target.name : 'another workspace'}?${detail}`)) return;
+    try {
+      await api.post(`/tasks/${task.id}/move`, { workspace_id: workspaceId });
+      onChanged?.();
+      onClose?.();
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+
   async function convertToIdea() {
-    if (!confirm(`Move "${task.title}" to the Backlog as an idea? The task will be removed.`)) return;
+    if (!confirm(`Move "${task.title}" to Ideas? The task will be removed.`)) return;
     try {
       await api.post(`/tasks/${task.id}/convert-to-idea`);
       onChanged?.();
@@ -226,6 +242,14 @@ export default function TaskDetail({ taskId, projects, settings, onClose, onChan
           <option value="weekly:2">Every 2 weeks</option>
           <option value="monthly:1">Monthly</option>
         </select>
+
+        <label>Workspace</label>
+        <WorkspaceMove
+          workspaces={workspaces}
+          currentId={task.workspace_id ?? activeWorkspaceId}
+          onMove={moveToWorkspace}
+          hint="Moving a task on its own clears its project and story"
+        />
 
         <label>Tags</label>
         <input

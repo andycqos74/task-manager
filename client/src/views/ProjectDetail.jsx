@@ -3,8 +3,9 @@ import { api } from '../api.js';
 import QuickAdd from '../components/QuickAdd.jsx';
 import TaskList from '../components/TaskList.jsx';
 import DevTracker from '../components/DevTracker.jsx';
+import WorkspaceMove from '../components/WorkspaceMove.jsx';
 
-export default function ProjectDetail({ projectId, refreshKey, refresh, onSelectTask, onError, setView }) {
+export default function ProjectDetail({ projectId, refreshKey, refresh, onSelectTask, onError, setView, workspaces, activeWorkspaceId }) {
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [showDone, setShowDone] = useState(false);
@@ -26,6 +27,21 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
     try {
       await api.patch(`/projects/${project.id}`, body);
       refresh();
+    } catch (err) {
+      onError(err);
+    }
+  }
+
+  // Moving takes the whole project with it — tasks, epics, stories, and the
+  // ideas, bugs and notes filed against it — so the project leaves the current
+  // workspace entirely and this view has nothing left to show.
+  async function moveToWorkspace(workspaceId) {
+    const target = workspaces.find((w) => w.id === workspaceId);
+    if (!confirm(`Move "${project.name}" to ${target ? target.name : 'another workspace'}? Its tasks, epics, stories, ideas, bugs and notes move with it.`)) return;
+    try {
+      await api.post(`/projects/${project.id}/move`, { workspace_id: workspaceId });
+      refresh();
+      setView({ name: 'projects' });
     } catch (err) {
       onError(err);
     }
@@ -76,6 +92,13 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
         <input type="date" value={project.start_date || ''} onChange={(e) => patch({ start_date: e.target.value || null })} />
         <label>Target date</label>
         <input type="date" value={project.target_date || ''} onChange={(e) => patch({ target_date: e.target.value || null })} />
+        <label>Workspace</label>
+        <WorkspaceMove
+          workspaces={workspaces}
+          currentId={project.workspace_id ?? activeWorkspaceId}
+          onMove={moveToWorkspace}
+          hint="Moving takes the project's tasks, epics, stories, ideas, bugs and notes with it"
+        />
         <label>Track development</label>
         <label className="inline">
           <input type="checkbox" checked={!!project.track_dev} onChange={(e) => patch({ track_dev: e.target.checked })} />

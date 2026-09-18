@@ -11,7 +11,7 @@ const IDEA_STATUSES = [
 // wording (and a card accent) differ.
 const COPY = {
   idea: {
-    heading: 'Backlog',
+    heading: 'Ideas',
     subtitle: 'Raw ideas — promote the good ones into epics, stories or tasks',
     placeholder: 'Capture an idea — press Enter',
     empty: 'No ideas here yet. Capture one above, or turn a note or task into an idea.',
@@ -26,8 +26,8 @@ const COPY = {
   },
 };
 
-// Backlog list, shared by the Ideas Backlog (kind="idea") and Bugs (kind="bug").
-export default function Backlog({ kind = 'idea', refreshKey, refresh, projects, onError }) {
+// Capture list, shared by Ideas (kind="idea") and Bugs (kind="bug").
+export default function Ideas({ kind = 'idea', refreshKey, refresh, projects, onError }) {
   const copy = COPY[kind] || COPY.idea;
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState('open');
@@ -116,7 +116,7 @@ export default function Backlog({ kind = 'idea', refreshKey, refresh, projects, 
       ) : (
         <div className="idea-list">
           {items.map((item) => (
-            <BacklogCard
+            <IdeaCard
               key={item.id}
               item={item}
               kind={kind}
@@ -136,7 +136,7 @@ export default function Backlog({ kind = 'idea', refreshKey, refresh, projects, 
   );
 }
 
-function BacklogCard({ item, kind, projects, devProjects, expanded, onToggle, onPatch, onRemove, onPromoted, onError }) {
+function IdeaCard({ item, kind, projects, devProjects, expanded, onToggle, onPatch, onRemove, onPromoted, onError }) {
   return (
     <div className={`idea-card ${kind} ${item.status}`}>
       <div className="idea-head" onClick={onToggle}>

@@ -157,7 +157,9 @@ function WorkspaceSettings({ refresh, onError }) {
       <label className="section-label">Workspaces</label>
       <div className="hint" style={{ marginBottom: 8 }}>
         Each workspace keeps its own projects, tasks, notes, ideas, bugs and boards — switch between them from the
-        chip in the header. Settings below and the scratch pad are shared by all workspaces.
+        chip in the header. Settings below and the scratch pad are shared by all workspaces. Work can be moved
+        across: a project (with its tasks, epics, stories, ideas and bugs), a single task, or a board, each from
+        its own panel.
       </div>
       <div className="col-config-list">
         {workspaces.map((ws) => (

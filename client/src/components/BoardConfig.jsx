@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { api, DEV_STATUSES } from '../api.js';
+import WorkspaceMove from './WorkspaceMove.jsx';
 
 // Board + column editor, shown as an overlay panel over the board. Columns are
 // the configurable part: name, which dev stage they map to, and their order.
-export default function BoardConfig({ board, boards, onClose, onChanged, onSelectBoard, onError }) {
+export default function BoardConfig({ board, boards, workspaces, activeWorkspaceId, onClose, onChanged, onMoved, onSelectBoard, onError }) {
   const [newBoard, setNewBoard] = useState('');
   const [newCol, setNewCol] = useState('');
   const [newColStage, setNewColStage] = useState('backlog');
@@ -26,6 +27,19 @@ export default function BoardConfig({ board, boards, onClose, onChanged, onSelec
     if (boards.length <= 1) { onError(new Error('Keep at least one board')); return; }
     if (!confirm(`Delete board "${board.name}"? Its columns are removed; cards are untouched.`)) return;
     run(api.delete(`/boards/${board.id}`));
+  }
+
+  // A board is a set of columns, not a set of cards: it always shows the work
+  // of the workspace it sits in, so moving one hands the columns over. The
+  // board is gone from here afterwards, so the view has to pick another one —
+  // that's onMoved's job, not a plain reload.
+  async function moveBoard(workspaceId) {
+    const target = workspaces.find((w) => w.id === workspaceId);
+    if (!confirm(`Move board "${board.name}" to ${target ? target.name : 'another workspace'}? Its columns go with it; cards stay in their own workspace.`)) return;
+    try {
+      await api.post(`/boards/${board.id}/move`, { workspace_id: workspaceId });
+      onMoved();
+    } catch (err) { onError(err); }
   }
 
   function addColumn(e) {
@@ -68,6 +82,14 @@ export default function BoardConfig({ board, boards, onClose, onChanged, onSelec
           key={`bn-${board.id}-${board.updated_at}`}
           defaultValue={board.name}
           onBlur={(e) => e.target.value.trim() && e.target.value !== board.name && run(api.patch(`/boards/${board.id}`, { name: e.target.value }))}
+        />
+
+        <label className="section-label">Workspace</label>
+        <WorkspaceMove
+          workspaces={workspaces}
+          currentId={board.workspace_id ?? activeWorkspaceId}
+          onMove={moveBoard}
+          hint="The board shows whichever workspace it lives in"
         />
 
         <label className="section-label">Columns</label>

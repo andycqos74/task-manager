@@ -65,6 +65,12 @@ module in a toolchain stage, and ships a slim runtime image that runs as a non-r
 
 ## Concepts
 
+- **Workspaces** — the top level: each keeps its own projects, tasks, notes, ideas, bugs,
+  epics/stories and boards, so work and personal stay apart. Switch from the chip in the
+  header; settings and the scratch pad are shared. Work can be moved between workspaces —
+  a **project** takes its tasks, epics, stories and the ideas, bugs and notes filed against
+  it; a **task** can go on its own (it leaves its project and story behind); a **board**
+  takes its columns.
 - **Projects / Goals** — larger pieces of work. Tasks can belong to a project or live in
   the general pool. Projects track status, start/target dates and completion progress.
 - **Quick capture** — every view has a one-line add box: type a title, press Enter. All
@@ -126,8 +132,13 @@ Run server unit tests with `npm test`.
 
 ## API sketch
 
+- `GET/POST /api/workspaces`, `PATCH/DELETE /api/workspaces/:id`,
+  `POST /api/workspaces/:id/activate`
 - `GET/POST /api/projects`, `PATCH/DELETE /api/projects/:id`
 - `GET/POST /api/tasks`, `GET/PATCH/DELETE /api/tasks/:id` (quick add = `{title}` only)
+- `POST /api/projects/:id/move`, `POST /api/tasks/:id/move`, `POST /api/boards/:id/move`
+  `{workspace_id}` — move between workspaces (a task also takes an optional `project_id`
+  naming a project in the destination)
 - `POST /api/tasks/:id/my-day` `{on: true|false}`
 - `POST /api/tasks/:id/subtasks`, `PATCH/DELETE /api/subtasks/:id`
 - `PUT /api/tasks/:id/dependencies` `{depends_on_ids: [...]}`

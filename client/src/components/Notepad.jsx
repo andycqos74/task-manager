@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { PencilIcon } from '../icons.jsx';
+import { PencilIcon, ExpandIcon, ShrinkIcon, PlusIcon } from '../icons.jsx';
 
 const MIN_BLOCK_HEIGHT = 28;
 const MIN_HEIGHT = 120;
@@ -277,7 +277,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
     }
   }
 
-  // Turn the focused block into a backlog idea (title + description).
+  // Turn the focused block into an idea (title + description).
   async function lineToIdea() {
     const lines = focusedLines('→ Idea');
     if (!lines) return;
@@ -328,59 +328,86 @@ export default function Notepad({ projects, context, refresh, onError }) {
           <span className="notepad-resize-grip" />
         </div>
       )}
+      {/* Two wrappers so the bar can reflow into stacked rows on a phone. On
+          wider screens they are display:contents and every control sits in the
+          one row, ordered by CSS rather than by the markup. */}
       <div className="notepad-bar">
-        <button className="notepad-toggle" onClick={() => setCollapsed((c) => !c)}>
-          <PencilIcon /> Notepad {collapsed ? '▲' : '▼'}
-        </button>
+        <div className="notepad-bar-lead">
+          <button className="notepad-toggle" onClick={() => setCollapsed((c) => !c)}>
+            <PencilIcon />
+            <span>Notepad</span>
+            <span className="notepad-caret">{collapsed ? '▲' : '▼'}</span>
+          </button>
+          {!collapsed && note && (
+            <span className={`notepad-status ${saving ? 'saving' : flash ? 'flash' : ''}`}>
+              <span className="notepad-status-dot" />
+              <span className="notepad-status-text">{saving ? 'saving…' : flash || 'saved'}</span>
+            </span>
+          )}
+        </div>
         {!collapsed && note && (
-          <>
-            <button className="small" onClick={toggleSize} title="Expand or shrink the notepad">
-              {isExpanded ? '⤡ Shrink' : '⤢ Expand'}
+          <div className="notepad-bar-tools">
+            <span className="notepad-divider" />
+            <button className="notepad-ghost-btn notepad-size-btn" onClick={toggleSize} title="Expand or shrink the notepad">
+              {isExpanded ? <ShrinkIcon /> : <ExpandIcon />}
+              <span className="notepad-btn-label">{isExpanded ? 'Shrink' : 'Expand'}</span>
             </button>
-            <select value={note.id} onChange={(e) => switchTo(Number(e.target.value))} title="Choose note">
-              {options.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.is_scratch ? '★ Scratch' : n.title || 'Untitled'}
-                  {n.task_title ? ` · task: ${n.task_title}` : n.project_name ? ` · ${n.project_name}` : ''}
-                </option>
-              ))}
-              {!options.some((n) => n.id === note.id) && (
-                <option value={note.id}>{note.title || 'Untitled'}</option>
-              )}
-            </select>
-            <button className="small" onClick={newNote}>＋ New</button>
-            {!note.is_scratch && (
-              <input
-                className="notepad-title"
-                value={note.title}
-                placeholder="Untitled note"
-                onChange={(e) => { setNote((n) => ({ ...n, title: e.target.value })); dirtyRef.current = true; }}
-              />
-            )}
-            <select className="attach-select" value={attachValue} onChange={(e) => setAttachment(e.target.value)} title="Attach this note">
-              <option value="standalone">Standalone</option>
-              {context?.taskId && <option value={`task:${context.taskId}`}>Attach to open task</option>}
-              {note.task_id && note.task_id !== context?.taskId && (
-                <option value={`task:${note.task_id}`}>Task: {note.task_title}</option>
-              )}
-              <optgroup label="Attach to project">
-                {projects.map((p) => (
-                  <option key={p.id} value={`project:${p.id}`}>{p.name}</option>
+            <span className="notepad-divider" />
+
+            {/* Which note you are on, what it is attached to, and a new one. */}
+            <div className="notepad-note-group">
+              <select className="notepad-picker" value={note.id} onChange={(e) => switchTo(Number(e.target.value))} title="Choose note">
+                {options.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.is_scratch ? '★ Scratch' : n.title || 'Untitled'}
+                    {n.task_title ? ` · task: ${n.task_title}` : n.project_name ? ` · ${n.project_name}` : ''}
+                  </option>
                 ))}
-              </optgroup>
-            </select>
-            <button className="to-task-btn" onClick={lineToTask} title="Turn the current line or selection into a task">
-              → Task
-            </button>
-            <button className="to-idea-btn" onClick={lineToIdea} title="Turn the current line or selection into a backlog idea">
-              → Idea
-            </button>
-            <button className="to-bug-btn" onClick={lineToBug} title="Turn the current line or selection into a bug">
-              → Bug
-            </button>
-            {!note.is_scratch && <button className="link" onClick={deleteNote}>delete</button>}
-            <span className="notepad-status">{saving ? 'saving…' : flash || 'saved'}</span>
-          </>
+                {!options.some((n) => n.id === note.id) && (
+                  <option value={note.id}>{note.title || 'Untitled'}</option>
+                )}
+              </select>
+              {!note.is_scratch && (
+                <input
+                  className="notepad-title"
+                  value={note.title}
+                  placeholder="Untitled note"
+                  onChange={(e) => { setNote((n) => ({ ...n, title: e.target.value })); dirtyRef.current = true; }}
+                />
+              )}
+              <select className="notepad-picker attach-select" value={attachValue} onChange={(e) => setAttachment(e.target.value)} title="Attach this note">
+                <option value="standalone">Standalone</option>
+                {context?.taskId && <option value={`task:${context.taskId}`}>Attach to open task</option>}
+                {note.task_id && note.task_id !== context?.taskId && (
+                  <option value={`task:${note.task_id}`}>Task: {note.task_title}</option>
+                )}
+                <optgroup label="Attach to project">
+                  {projects.map((p) => (
+                    <option key={p.id} value={`project:${p.id}`}>{p.name}</option>
+                  ))}
+                </optgroup>
+              </select>
+              <button className="notepad-new-btn" onClick={newNote} title="Start a new note">
+                <PlusIcon />
+                <span className="notepad-btn-label">New</span>
+              </button>
+            </div>
+
+            <span className="notepad-divider convert-divider" />
+            <div className="notepad-convert">
+              <span className="notepad-convert-label">Convert to</span>
+              <button className="convert-btn task" onClick={lineToTask} title="Turn the current line or selection into a task">
+                <span className="convert-dot" />Task
+              </button>
+              <button className="convert-btn idea" onClick={lineToIdea} title="Turn the current line or selection into an idea">
+                <span className="convert-dot" />Idea
+              </button>
+              <button className="convert-btn bug" onClick={lineToBug} title="Turn the current line or selection into a bug">
+                <span className="convert-dot" />Bug
+              </button>
+            </div>
+            {!note.is_scratch && <button className="link notepad-delete" onClick={deleteNote}>delete</button>}
+          </div>
         )}
       </div>
       {!collapsed && note && (
