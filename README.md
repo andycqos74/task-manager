@@ -131,13 +131,25 @@ configured or a call fails.
 
 ```
 server/   Express + better-sqlite3 (data in server/data/tasks.db)
+  index.js        starts the server
+  src/app.js      builds the express app (exported so tests drive the real one)
+  src/scope.js    per-request scope: whose data this request may touch
+  src/routes.js   REST API (/api/...) — validation and orchestration, no SQL
+  src/data/*.js   every query, each one filtered by the request scope
   src/db.js       schema + settings
   src/dates.js    date maths incl. the Do-date default rule
   src/scoring.js  rule-based ranking / fallback planner
   src/ai.js       Claude API integration
-  src/routes.js   REST API (/api/...)
 client/   React + Vite, no UI framework (styling is a deliberate later pass)
 ```
+
+The split between `routes.js` and `src/data/` is load-bearing rather than
+cosmetic: an accessor cannot be called without a scope, so an endpoint cannot
+read or write a row outside the active workspace even if the handler forgets to
+check. `test/isolation.test.js` calls every id-taking endpoint with another
+workspace's ids and asserts it refuses, and asserts that `routes.js` contains no
+SQL of its own. That is the groundwork for user accounts — see
+[MULTI_USER_PLAN.md](MULTI_USER_PLAN.md).
 
 Run server unit tests with `npm test`.
 

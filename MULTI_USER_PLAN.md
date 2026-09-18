@@ -18,11 +18,11 @@ preserving today's login-free behaviour, rather than in a fork.
 |---|---|---|
 | Identity | none — the API is open to anyone who can reach the port | everything below is new |
 | Top-level scope | `workspaces`, with `workspace_id` on projects/tasks/notes/ideas/boards | good news: the ownership column has a natural home one level up |
-| Active scope | `activeWorkspaceId()` reads a **global** row in `settings` (26 call sites in `routes.js`) | server-global state; two users would fight over it |
+| Active scope | ~~`activeWorkspaceId()` reads a **global** row in `settings` (26 call sites)~~ — **done in phase 0**: resolved once per request into `req.scope` | the value is still global; phase 1 moves it into the signed-in user's settings |
 | Settings | one global `settings` key/value table, including `anthropic_api_key` | must become per-user |
-| Fetch by id | `getTask`, `getEpic`, `getStory`, `getNote`, `getIdea`, `getBoard` and most `PATCH`/`DELETE` handlers look rows up by primary key with **no scope filter** | already lets one workspace read another's rows; in multi-user the same code is a cross-account data leak |
+| Fetch by id | ~~looked rows up by primary key with **no scope filter**~~ — **done in phase 0**: every accessor filters on the scope, and a test proves it | phase 1 adds `AND user_id = ?` in the same accessors |
 | Transport | plain HTTP on :3001, `app.use(cors())` allows every origin | both must change before accounts exist |
-| Endpoints | 63 in `server/src/routes.js` | each one needs an ownership guarantee |
+| Endpoints | 63 in `server/src/routes.js` | **done in phase 0**: each goes through a scoped accessor, asserted by `test/isolation.test.js` |
 
 **The central piece of work is not the login screen — it is making every query provably
 scoped to the caller.** Budget accordingly.
@@ -107,6 +107,13 @@ CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
 Grandchildren (`subtasks`, `task_dependencies`, `epics`, `user_stories`, `board_columns`)
 stay unstamped and are reached only through a parent that has already been ownership-checked
 (§5).
+
+**One exception needs deliberate handling: the scratch note.** It is a single global row
+(`notes.is_scratch = 1`, `workspace_id` NULL) shared by every workspace on purpose, and
+phase 0 preserved that. Shared between *workspaces* is a feature; shared between *users* is
+a data leak, so phase 1 must give it a `user_id` (or hold its id in each user's settings)
+at the same time as the rest of the ownership work. `server/src/data/notes.js` carries a
+comment saying so.
 
 ---
 
@@ -209,47 +216,62 @@ becomes a liability once credentials exist.
 
 ## 5. Scoping every query — the core work
 
-This is where a multi-user app is won or lost. Do it structurally, not by remembering to add
-a `WHERE` clause 63 times.
+**Status: built (phase 0).** This is where a multi-user app is won or lost, so it was done
+structurally rather than by remembering to add a `WHERE` clause 63 times. What follows
+describes what is in the tree and what phase 1 adds to it.
 
-### 5.1 Middleware
+### 5.1 A scope object, not a bare id — **done**
+
+`server/src/scope.js` resolves one scope per request in `server/src/app.js`, before any
+handler runs:
+
+```js
+app.use('/api', attachScope, router);   // req.scope = { workspaceId }
+```
+
+The 26 global `activeWorkspaceId()` call sites are gone. Phase 1 adds `userId` to that
+object, sourced from the session, and takes `workspaceId` from the user's own
+`active_workspace_id` in `user_settings` — which is what ends the last-writer-wins race
+between two people using one server.
+
+### 5.2 Auth middleware — phase 1
 
 ```js
 // server/src/auth.js
-app.use(attachUser);   // reads the cookie, loads the session, sets req.user
+app.use(attachUser);     // reads the cookie, loads the session, sets req.user
 router.use(requireUser); // 401 if absent; in AUTH_MODE=single, attachUser
                          // always sets user #1 so this is a no-op
 ```
 
-### 5.2 A scope object, not a bare id
+`attachScope` then reads `req.user` instead of the global setting. Nothing in
+`routes.js` changes.
 
-Replace the global `activeWorkspaceId()` with a per-request scope:
+### 5.3 Ownership-checked accessors — **done**
 
-```js
-// req.scope = { userId, workspaceId }
-// workspaceId comes from the user's own `active_workspace_id` in user_settings,
-// or an X-Workspace-Id header — and is ALWAYS validated to belong to req.user.
-```
-
-That removes the 26 global-state call sites and the last-writer-wins race between users.
-
-### 5.3 Ownership-checked accessors
-
-Every by-id lookup takes the scope and filters on it. The unscoped helpers disappear
-entirely, so there is no unsafe version left to call by accident:
+All SQL now lives in `server/src/data/` (`tasks.js`, `projects.js`, `notes.js`, `dev.js`,
+`ideas.js`, `boards.js`, `workspaces.js`). Every accessor takes the scope and filters on
+it, and the unscoped helpers are gone, so there is no unsafe version left to call by
+accident:
 
 ```js
-// before
+// before, in routes.js
 function getTask(id) {
   return db.prepare(`${TASK_SELECT} WHERE t.id = ?`).get(id);
 }
 
-// after
-function getTask(id, scope) {
-  return db.prepare(`${TASK_SELECT} WHERE t.id = ? AND t.user_id = ?`)
-           .get(id, scope.userId);
+// now, in data/tasks.js
+export function getTask(scope, id) {
+  return db.prepare(`${TASK_SELECT} WHERE t.id = ? AND t.workspace_id = ?`)
+           .get(id, scope.workspaceId);   // phase 1 adds AND t.user_id = ?
 }
 ```
+
+Two accessors per entity, deliberately: `getTask(scope, id)` for the active workspace, and
+`getTaskAnywhere(scope, id)` for the move endpoints, whose destination is by definition
+another workspace. Keeping that distinction explicit means phase 1 adds an owner filter to
+the second rather than having to work out, query by query, which reach was meant. Each
+module also carries an `UPDATABLE` column allowlist, so a stray key in a request body
+cannot become part of an `UPDATE`.
 
 For grandchildren, resolve through the parent and check the parent:
 
@@ -264,20 +286,27 @@ function getStory(id, scope) {
 
 Return **404, not 403**, for a row owned by someone else — 403 confirms the row exists.
 
-### 5.4 Prove it, don't hope
+### 5.4 Prove it, don't hope — **done**
 
-Add a test that walks every route and asserts isolation, so a future endpoint cannot quietly
-skip the filter:
+`server/test/isolation.test.js` seeds two workspaces with identical fixtures and, with A
+active:
 
-1. Seed two users, each with a full set of fixtures (workspace, project, task, note, idea,
-   board, epic, story, subtask).
-2. For each of the 63 endpoints, call it as user B with user A's ids and assert `404`.
-3. Assert every list endpoint returns only the caller's rows.
-4. Add a lint-style check that `routes.js` contains no `db.prepare` outside the scoped
-   accessor module, so new code has to go through the safe path.
+1. calls all 32 endpoints that take an id in the path with B's ids, asserting `404`;
+2. calls the 16 that take an id in a request body with B's ids, asserting `400`;
+3. asserts every list endpoint returns only A's rows;
+4. re-activates B and asserts its fixtures are untouched — so a refusal that nevertheless
+   wrote something is caught too;
+5. asserts `routes.js` contains no SQL of its own, so a new endpoint has to go through the
+   scoped accessors.
 
-Test 2 is the single highest-value thing in this plan. It needs `server/index.js` to export
-the express `app` so tests can drive it in-process.
+It returns **404, not 403**, for a row owned by someone else: 403 confirms the row exists.
+
+The suite was verified by regression — reverting one accessor to its unscoped form makes it
+fail. `server/src/app.js` exports `createApp()` so the tests drive the real middleware
+stack rather than a partial copy of it.
+
+Phase 1 runs the same table a second time with two users instead of two workspaces, which
+is why it is written as a table rather than as prose.
 
 ---
 
@@ -396,14 +425,15 @@ Each phase is independently shippable and leaves the app working.
 
 | Phase | Content | Rough size |
 |---|---|---|
-| **0 — Scoping refactor** | Replace `activeWorkspaceId()` with a request scope object; move every `db.prepare` out of `routes.js` into scoped accessors; export the app from `index.js`; add the isolation test harness with a single user. No user-visible change. | Largest single chunk. Do it on `main`, before anything else — it benefits the current app too (it fixes today's cross-workspace by-id reads). |
-| **1 — Accounts** | `users`, `sessions`, `user_settings`, `app_settings`; scrypt hashing; login/logout/me; `AUTH_MODE`; per-user settings; migration + setup screen; login/account UI; drop open CORS. | Medium-large. |
+| **0 — Scoping refactor** ✅ | Request scope object; all SQL moved into `src/data/*` behind scoped accessors; `createApp()` exported; isolation test harness. | **Done.** It also fixed today's cross-workspace by-id reads as a side effect. |
+| **1 — Accounts** | `users`, `sessions`, `user_settings`, `app_settings`; scrypt hashing; login/logout/me; `AUTH_MODE`; `userId` in the scope and in every accessor; per-user settings; **a per-user scratch note** (see §2); migration + setup screen; login/account UI; drop open CORS. | Medium-large. |
 | **2 — Hardening** | Field encryption of API keys (§6.1); CSRF; rate limiting and lockout; secure-cookie and TLS enforcement; the full 63-endpoint isolation test; session management UI. | Medium. |
 | **3 — MFA** | TOTP enrolment with QR, verification at login, encrypted recovery codes, step-up on password change. | Medium. |
 | **4 — Optional** | SQLCipher at rest (§6.2); password reset by email (needs SMTP config); invite tokens; per-user data export/delete. | Small each. |
 
-Phase 0 is the one to resist skipping. It is the only phase with no visible payoff and the
-only one that makes the rest safe.
+Phase 0 was the one to resist skipping: the only phase with no visible payoff, and the only
+one that makes the rest safe. With it in place, phase 1 is additive — a `user_id` column, a
+filter inside accessors that already exist, and the login surface — rather than a rewrite.
 
 ## 10. Deliberately out of scope
 
