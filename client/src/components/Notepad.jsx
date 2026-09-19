@@ -5,9 +5,22 @@ import { PencilIcon, ExpandIcon, ShrinkIcon, PlusIcon } from '../icons.jsx';
 const MIN_BLOCK_HEIGHT = 28;
 const MIN_HEIGHT = 120;
 const DEFAULT_HEIGHT = 240;
+const HEADER_H = 78;   // .app-header, --header-h
+const HANDLE_H = 8;    // the resize grip above the toolbar
+const VIEW_MARGIN = 70; // strip of the view left visible above the dock
 
+// The dock's own furniture: the toolbar plus the grip. The toolbar is one row
+// on a wide screen and three on a phone, so this is measured rather than
+// assumed. Read off the DOM because the dock is a singleton and the height
+// matters to plain functions as well as to the component.
+function dockChrome() {
+  const bar = document.querySelector('.notepad-bar');
+  return (bar ? bar.offsetHeight : 64) + HANDLE_H;
+}
+
+// How tall the note page may grow before the dock would reach the header.
 function maxHeight() {
-  return Math.max(300, window.innerHeight - 220);
+  return Math.max(MIN_HEIGHT, window.innerHeight - HEADER_H - VIEW_MARGIN - dockChrome());
 }
 
 function uid() {
@@ -107,13 +120,26 @@ export default function Notepad({ projects, context, refresh, onError }) {
     localStorage.setItem('notepad-height', String(pageHeight));
   }, [pageHeight]);
 
+  // Resizing (or rotating a phone) changes how many rows the toolbar takes,
+  // and a shorter window may no longer fit the current page height.
+  const [viewport, setViewport] = useState(0);
+  useEffect(() => {
+    const onResize = () => setViewport((v) => v + 1);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  useEffect(() => { setPageHeight((h) => Math.min(h, maxHeight())); }, [viewport]);
+
   // The notepad is fixed-positioned (so it never covers the sidebar), which
   // takes it out of normal flex flow — reserve matching space at the bottom
   // of .main so page content never sits underneath it.
   useEffect(() => {
-    const reserved = collapsed ? 48 : pageHeight + 56;
-    document.documentElement.style.setProperty('--notepad-space', `${reserved}px`);
-  }, [collapsed, pageHeight]);
+    const bar = document.querySelector('.notepad-bar')?.offsetHeight ?? 48;
+    document.documentElement.style.setProperty(
+      '--notepad-space',
+      `${collapsed ? bar : bar + HANDLE_H + pageHeight}px`,
+    );
+  }, [collapsed, pageHeight, viewport]);
 
   // Drag the handle above the page to resize it vertically.
   function startResize(e) {
@@ -328,14 +354,14 @@ export default function Notepad({ projects, context, refresh, onError }) {
           <span className="notepad-resize-grip" />
         </div>
       )}
-      {/* Two wrappers so the bar can reflow into stacked rows on a phone. On
-          wider screens they are display:contents and every control sits in the
-          one row, ordered by CSS rather than by the markup. */}
+      {/* The wrappers are display:contents, so every control below is a flex
+          item of the bar itself: one row on a wide screen, three wrapped rows
+          on a phone, arranged by CSS order rather than by the markup. */}
       <div className="notepad-bar">
         <div className="notepad-bar-lead">
           <button className="notepad-toggle" onClick={() => setCollapsed((c) => !c)}>
             <PencilIcon />
-            <span>Notepad</span>
+            <span className="notepad-toggle-label">Notepad</span>
             <span className="notepad-caret">{collapsed ? '▲' : '▼'}</span>
           </button>
           {!collapsed && note && (
@@ -354,6 +380,7 @@ export default function Notepad({ projects, context, refresh, onError }) {
             </button>
             <span className="notepad-divider" />
 
+            <span className="notepad-row-break break-pickers" />
             {/* Which note you are on, what it is attached to, and a new one. */}
             <div className="notepad-note-group">
               <select className="notepad-picker" value={note.id} onChange={(e) => switchTo(Number(e.target.value))} title="Choose note">
@@ -393,7 +420,8 @@ export default function Notepad({ projects, context, refresh, onError }) {
               </button>
             </div>
 
-            <span className="notepad-divider convert-divider" />
+            <span className="notepad-row-break break-convert" />
+            <span className="notepad-divider" />
             <div className="notepad-convert">
               <span className="notepad-convert-label">Convert to</span>
               <button className="convert-btn task" onClick={lineToTask} title="Turn the current line or selection into a task">

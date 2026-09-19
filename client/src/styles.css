@@ -721,24 +721,36 @@ button.danger:hover { background: var(--danger-light); }
 .notepad-status.saving .notepad-status-dot { background: var(--warning); }
 .notepad-status.flash .notepad-status-dot { background: var(--accent); }
 
-/* Phone: a toggle/status row above a scrolling row of touch-sized chips. */
-@media (max-width: 640px) {
-  .notepad-bar { flex-direction: column; align-items: stretch; height: auto; gap: 0; padding: 0; overflow: visible; }
-  .notepad-bar-lead {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 6px;
-  }
-  .notepad-bar-tools {
-    display: flex; align-items: center; gap: 8px; padding: 6px 14px 12px;
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
-  }
-  /* Ungroup so New and the convert pills can be ordered into the chip row. */
+/* Zero-height, full-width items that force the phone row breaks (see below).
+   They take part in no other layout. */
+.notepad-row-break { display: none; }
+
+/* Phones and small tablets — the same 780px breakpoint at which the sidebar
+   collapses and the dock goes full width. Three wrapped rows, each fitting the
+   screen, so nothing scrolls sideways: minimise / full screen / New / status,
+   then the note pickers, then the convert buttons. */
+@media (max-width: 780px) {
+  .notepad-bar { flex-wrap: wrap; height: auto; gap: 4px 8px; padding: 10px 14px; overflow: visible; }
+  /* Ungroup so New can move up to row 1 and the convert pills fill row 3. */
   .notepad-note-group, .notepad-convert { display: contents; }
-  .notepad-status { order: 0; margin-left: 0; }
-  .notepad-divider:not(.convert-divider), .notepad-convert-label, .notepad-size-btn .notepad-btn-label { display: none; }
-  .notepad-new-btn { order: -2; }
-  .notepad-size-btn { order: -1; }
-  .notepad-convert .convert-btn, .notepad-delete { order: 1; }
-  .notepad-delete { min-height: 44px; padding: 0 8px; } /* touch target */
+  .notepad-divider, .notepad-convert-label, .notepad-size-btn .notepad-btn-label { display: none; }
+  .notepad-row-break { display: block; flex: 0 0 100%; height: 0; margin: 2px 0; }
+
+  .notepad-toggle { order: 1; }
+  .notepad-size-btn { order: 2; }
+  .notepad-new-btn { order: 3; }
+  /* Fills what is left of row 1 and truncates: a long "created task …"
+     message must not push itself onto a row of its own. */
+  .notepad-status { order: 4; flex: 1 1 0; min-width: 0; justify-content: flex-end; }
+  .break-pickers { order: 5; }
+  .notepad-bar .notepad-picker, .notepad-bar input.notepad-title {
+    order: 6; flex: 1 1 0; min-width: 0; max-width: none;
+  }
+  .break-convert { order: 7; }
+  .convert-btn { order: 8; flex: 1 1 auto; justify-content: center; }
+  .notepad-delete { order: 9; min-height: 44px; padding: 0 8px; } /* touch target */
+
+  .notepad-status-text { overflow: hidden; text-overflow: ellipsis; }
   .notepad-bar .notepad-picker, .notepad-bar input.notepad-title, .notepad-ghost-btn, .notepad-new-btn, .convert-btn {
     background-color: oklch(1 0 0 / 0.06); border-radius: 9px; padding: 10px 12px; font-size: 13.5px;
     min-height: 44px; /* touch target */
@@ -746,6 +758,12 @@ button.danger:hover { background: var(--danger-light); }
   .notepad-bar .notepad-picker { padding-right: 26px; }
   .notepad-new-btn { background-color: var(--accent); padding: 10px 14px; font-size: 14px; }
   .convert-btn { background-color: transparent; }
+}
+
+/* Narrowest phones: the word "Notepad" is what pushes the status off row 1,
+   and the pencil plus caret say the same thing. */
+@media (max-width: 380px) {
+  .notepad-toggle-label { display: none; }
 }
 
 /* Dark "page" you click anywhere on to start a note block — matches the
