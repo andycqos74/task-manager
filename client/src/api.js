@@ -1,19 +1,40 @@
 // Thin fetch wrapper for the task manager API.
 
+// Called when the server says the session is gone, so the app can drop back to
+// the login screen instead of every view throwing its own error. Set by
+// App.jsx; a no-op in single-user mode, where requests never 401.
+let onUnauthorized = () => {};
+export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
+
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function request(method, path, body) {
   const res = await fetch(`/api${path}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    // Always declared, even with no body: the server requires it on every
+    // state-changing request as its CSRF defence, because a bodyless
+    // cross-origin POST would otherwise be a "simple request" the browser
+    // sends with our cookie attached.
+    headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
+    let body = null;
     try {
-      const data = await res.json();
-      if (data.error) message = data.error;
+      body = await res.json();
+      if (body.error) message = body.error;
     } catch { /* keep default message */ }
-    throw new Error(message);
+    if (res.status === 401) onUnauthorized(body || {});
+    throw new ApiError(message, res.status);
   }
+  // 204 No Content — logout and the like.
+  if (res.status === 204) return null;
   return res.json();
 }
 

@@ -37,31 +37,55 @@ The whole app runs as a **single container** — the Node server serves the buil
 frontend and the `/api` routes on the same port, so there is no separate web server and
 no CORS to configure.
 
+Images are built and tested by GitHub Actions and published to GHCR, so the Docker host
+never compiles anything — it just pulls:
+
 ```bash
-docker compose up --build
+curl -O https://raw.githubusercontent.com/andycqos74/task-manager/main/docker-compose.yml
+docker compose up -d
 ```
 
 Then open **http://localhost:3001** in your browser — that one URL serves both the UI and
 the API. To enable AI planning, either open **Settings** in the app and paste in a key
-(recommended — no restart needed), or provide it as an environment variable before starting
-the container:
+(recommended — no restart needed), or put it in a `.env` file beside the compose file
+(see `.env.example`).
+
+Update to the newest build, or roll back to an exact commit:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
+docker compose pull && docker compose up -d     # newest main
+IMAGE_TAG=sha-<commit-sha> docker compose up -d # pin / roll back
 ```
 
-Without Compose:
+To build the image locally instead of pulling it (development, or testing a Dockerfile
+change):
 
 ```bash
-docker build -t task-manager .
-docker run -p 3001:3001 -v taskdata:/data \
-  -e ANTHROPIC_API_KEY=sk-ant-... task-manager   # -e is optional
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
 ```
 
-The SQLite database is stored in the `taskdata` volume (mounted at `/data`, which the
-server reads via `DATA_DIR`), so your tasks survive container restarts and rebuilds. The
-image is a three-stage build: it compiles the frontend, compiles the native `better-sqlite3`
-module in a toolchain stage, and ships a slim runtime image that runs as a non-root user.
+The SQLite database is stored in the `task-manager-data` volume (mounted at `/data`, which
+the server reads via `DATA_DIR`), so your tasks survive container restarts and image
+updates. The image is a three-stage build: it compiles the frontend, compiles the native
+`better-sqlite3` module in a toolchain stage, and ships a slim runtime image that runs as a
+non-root user.
+
+Full instructions — GHCR package visibility, Portainer, backups, rollbacks — are in
+[DEPLOY.md](DEPLOY.md). The design for user accounts is in
+[MULTI_USER_PLAN.md](MULTI_USER_PLAN.md).
+
+## User accounts
+
+By default the app runs in **single-user mode**: no sign-in, one implicit
+owner, exactly as it has always worked. Set `AUTH_MODE=multi` and the same
+build becomes multi-user — email and password sign-in, with each account
+getting entirely separate workspaces, projects, tasks, notes, boards, settings
+and Anthropic API key. Nothing is shared between accounts.
+
+Multi-user mode requires TLS (the server refuses to start without it) because
+it issues a session cookie. See [DEPLOY.md](DEPLOY.md) for the setup, and
+[MULTI_USER_PLAN.md](MULTI_USER_PLAN.md) for the design and what is still to
+come (MFA, encryption of stored secrets, password reset).
 
 ## Concepts
 
@@ -120,13 +144,31 @@ configured or a call fails.
 
 ```
 server/   Express + better-sqlite3 (data in server/data/tasks.db)
-  src/db.js       schema + settings
+  index.js          starts the server
+  src/app.js        builds the express app (exported so tests drive the real one)
+  src/auth.js       passwords, sessions, AUTH_MODE, the auth middleware
+  src/auth-routes.js  /api/auth/... — setup, login, logout, password, sessions
+  src/scope.js      per-request scope: whose data this request may touch
+  src/routes.js     REST API (/api/...) — validation and orchestration, no SQL
+  src/data/*.js     every query, each one filtered by the request scope
+  src/db.js         schema + migrations
   src/dates.js    date maths incl. the Do-date default rule
   src/scoring.js  rule-based ranking / fallback planner
   src/ai.js       Claude API integration
-  src/routes.js   REST API (/api/...)
 client/   React + Vite, no UI framework (styling is a deliberate later pass)
 ```
+
+The split between `routes.js` and `src/data/` is load-bearing rather than
+cosmetic: an accessor cannot be called without a scope, so an endpoint cannot
+read or write a row outside the caller's reach even if the handler forgets to
+check. Ownership is recorded in exactly one column — `workspaces.user_id` — and
+`src/scope.js` proves on every request that the active workspace belongs to the
+caller, which is what lets every other query filter on the workspace alone.
+
+`test/cross-scope.js` holds one table of refusal cases that two suites run:
+`isolation.test.js` against two workspaces, `user-isolation.test.js` against two
+accounts. So an endpoint that is safe against a workspace switch but not against
+a different person cannot pass one and fail silently in the other.
 
 Run server unit tests with `npm test`.
 

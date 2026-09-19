@@ -1,0 +1,12 @@
+# Optional override that builds the image from this checkout instead of
+# pulling it from GHCR. Only needed for local development or when testing a
+# Dockerfile change before it is merged:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+#
+# Normal deployments use docker-compose.yml on its own and never compile.
+services:
+  task-manager:
+    build: .
+    image: task-manager:local
+    pull_policy: build

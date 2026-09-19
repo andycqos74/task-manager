@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api } from './api.js';
+import { api, setUnauthorizedHandler } from './api.js';
 import MyDay from './views/MyDay.jsx';
 import Schedule from './views/Schedule.jsx';
 import AllTasks from './views/AllTasks.jsx';
@@ -14,6 +14,8 @@ import Settings from './views/Settings.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher.jsx';
+import AccountMenu from './components/AccountMenu.jsx';
+import SignIn from './views/SignIn.jsx';
 import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon, ColumnsIcon } from './icons.jsx';
 import impMark from './assets/imp-cut.png';
 
@@ -38,6 +40,10 @@ const DEV_NAV = [
 const NARROW_QUERY = '(max-width: 780px)';
 
 export default function App() {
+  // `undefined` means "still asking the server", which is different from
+  // "signed out" — rendering the login form during that gap would flash it at
+  // every single-user visit.
+  const [user, setUser] = useState(undefined);
   const [view, setView] = useState({ name: 'myday' });
   const [projects, setProjects] = useState([]);
   const [settings, setSettings] = useState({ workday_minutes: 480, ai_available: false });
@@ -52,6 +58,23 @@ export default function App() {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Any request that comes back 401 means the session ended — expired, signed
+  // out in another tab, or revoked by a password change elsewhere. Drop to the
+  // sign-in screen once, rather than letting each view report its own failure.
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null));
+  }, []);
+
+  // Who is signed in. In single-user mode this always succeeds, so the app
+  // renders straight away and no one sees a login screen.
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/auth/me')
+      .then((me) => { if (!cancelled) setUser(me); })
+      .catch(() => { if (!cancelled) setUser(null); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Auto-collapse (or re-expand) the sidebar when the viewport crosses the
   // narrow-screen breakpoint, independent of any manual toggle in between.
@@ -86,13 +109,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!user) return; // nothing to load until we know whose data to ask for
     api.get('/projects').then(setProjects).catch(reportError);
     api.get('/settings').then(setSettings).catch(reportError);
     api.get('/workspaces').then((d) => {
       setWorkspaces(d.workspaces);
       setActiveWorkspaceId(d.active_id);
     }).catch(reportError);
-  }, [refreshKey, reportError]);
+  }, [refreshKey, reportError, user]);
 
   // Switching workspace changes what every endpoint returns, so close any open
   // task, drop the search, and send the user to a neutral view before
@@ -132,6 +156,14 @@ export default function App() {
     taskId: selectedTaskId,
   };
 
+  // Still asking. A blank frame for a few milliseconds beats flashing a login
+  // form at people who will never need one.
+  if (user === undefined) return <div className="app-booting" />;
+
+  if (!user) {
+    return <SignIn onSignedIn={(me) => { setUser(me); refresh(); }} />;
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -168,7 +200,11 @@ export default function App() {
             <BellIcon width={18} height={18} />
             <span className="header-dot" />
           </button>
-          <div className="header-avatar" title="Account">A</div>
+          <AccountMenu
+            user={user}
+            onSignedOut={() => { setUser(null); setWorkspaces([]); setProjects([]); }}
+            onError={reportError}
+          />
         </div>
       </header>
 

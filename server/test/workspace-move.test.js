@@ -1,41 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import express from 'express';
+import { call, cleanup, get, patch, post, raw } from './helpers.js';
 
-// db.js opens (and migrates) the database at import time, so point it at a
-// throwaway directory before the modules under test are loaded.
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-manager-test-'));
-process.env.DATA_DIR = dataDir;
-const { router } = await import('../src/routes.js');
-
-const app = express();
-app.use(express.json());
-app.use('/api', router);
-const server = app.listen(0);
-const base = `http://127.0.0.1:${server.address().port}/api`;
-
-test.after(() => {
-  server.close();
-  fs.rmSync(dataDir, { recursive: true, force: true });
-});
-
-async function call(method, url, body) {
-  const res = await fetch(`${base}${url}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json();
-  assert.ok(res.ok, `${method} ${url} failed: ${res.status} ${JSON.stringify(data)}`);
-  return data;
-}
-
-const get = (url) => call('GET', url);
-const post = (url, body) => call('POST', url, body);
-const patch = (url, body) => call('PATCH', url, body);
+test.after(cleanup);
 
 test('moving a project carries its tasks, dev tiers, ideas, bugs and notes to the other workspace', async () => {
   const { active_id: home } = await get('/workspaces');
@@ -97,6 +64,10 @@ test('moving a project clears a task link that would point back at the old works
   await patch(`/tasks/${task.id}`, { project_id: staying.id });
 
   await post(`/projects/${moving.id}/move`, { workspace_id: away.id });
+  // The task left the active workspace with its project, so it is only
+  // readable from the destination now.
+  assert.equal((await raw('GET', `/tasks/${task.id}`)).status, 404);
+  await post(`/workspaces/${away.id}/activate`);
   const moved = await get(`/tasks/${task.id}`);
   assert.equal(moved.workspace_id, away.id);
   assert.equal(moved.story_id, story.id);
@@ -136,13 +107,9 @@ test('a task cannot be filed under a project from another workspace', async () =
   const away = await post('/workspaces', { name: 'Third' });
   const hereProject = await post('/projects', { name: 'Here' });
   const task = await post('/tasks', { title: 'Wrong project' });
-  const res = await fetch(`${base}/tasks/${task.id}/move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workspace_id: away.id, project_id: hereProject.id }),
-  });
+  const res = await raw('POST', `/tasks/${task.id}/move`, { workspace_id: away.id, project_id: hereProject.id });
   assert.equal(res.status, 400);
-  assert.match((await res.json()).error, /destination workspace/);
+  assert.match(res.body.error, /destination workspace/);
   assert.equal((await get(`/tasks/${task.id}`)).workspace_id, home);
 });
 
@@ -163,11 +130,6 @@ test('moving a board takes its columns to the other workspace', async () => {
 test('a move needs a workspace that exists', async () => {
   const task = await post('/tasks', { title: 'Nowhere to go' });
   for (const body of [{}, { workspace_id: 987654 }]) {
-    const res = await fetch(`${base}/tasks/${task.id}/move`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    assert.equal(res.status, 400);
+    assert.equal((await raw('POST', `/tasks/${task.id}/move`, body)).status, 400);
   }
 });

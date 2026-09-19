@@ -776,3 +776,72 @@ button.danger:hover { background: var(--danger-light); }
 .note-block-handle { left: 6px; top: -11px; }
 .note-block-x { right: 6px; top: -11px; cursor: pointer; }
 .note-block:hover .note-block-handle, .note-block:hover .note-block-x { opacity: 1; }
+
+/* ---------- sign-in / account ---------- */
+
+.app-booting { min-height: 100vh; background: var(--bg); }
+
+.signin-shell {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px; background: var(--bg);
+}
+.signin-card {
+  width: 100%; max-width: 380px; background: #fff; border: 1px solid var(--card-border);
+  border-radius: 16px; padding: 28px 26px 24px;
+  box-shadow: 0 18px 40px -22px rgba(20, 20, 43, 0.35);
+  display: flex; flex-direction: column;
+}
+.signin-brand {
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  font-size: 26px; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 18px;
+}
+.signin-brand .brand-imp img { display: block; }
+.signin-lead {
+  margin: 0 0 16px; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary);
+}
+.signin-label {
+  font-size: 12.5px; font-weight: 700; color: var(--text-secondary);
+  margin-bottom: 6px; letter-spacing: 0.01em;
+}
+.signin-input {
+  width: 100%; padding: 10px 12px; margin-bottom: 14px; font-size: 14.5px;
+  font-family: inherit; color: var(--text-primary);
+  border: 1px solid var(--card-border); border-radius: 9px; background: #fff;
+}
+.signin-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.signin-card .hint { margin: -8px 0 14px; font-size: 12px; line-height: 1.45; }
+.signin-error { margin-bottom: 14px; }
+.signin-submit {
+  padding: 11px 16px; border: none; border-radius: 10px; background: var(--accent);
+  color: #fff; font-weight: 700; font-size: 14.5px; font-family: inherit; cursor: pointer;
+  box-shadow: 0 6px 16px -6px oklch(60% 0.13 66 / 0.5);
+}
+.signin-submit:disabled { opacity: 0.6; cursor: default; }
+.signin-switch {
+  margin-top: 14px; background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--accent-dark); font-size: 13px; font-family: inherit; text-align: center;
+}
+
+.account-menu { position: relative; }
+.account-menu .header-avatar { border: none; cursor: pointer; font-family: inherit; }
+.account-popover {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; width: 262px;
+  background: #fff; border: 1px solid var(--card-border); border-radius: 12px;
+  padding: 14px; box-shadow: 0 16px 34px -18px rgba(20, 20, 43, 0.4);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.account-identity { display: flex; flex-direction: column; gap: 2px; word-break: break-word; }
+.account-identity strong { font-size: 14px; }
+.account-notice { margin: 0; }
+.account-single-note { margin: 0; font-size: 12px; line-height: 1.5; }
+.account-single-note code {
+  background: var(--bg); padding: 1px 4px; border-radius: 4px; font-size: 11.5px;
+}
+.account-form { display: flex; flex-direction: column; gap: 8px; }
+.account-form .signin-input { margin-bottom: 0; }
+.account-actions { display: flex; align-items: center; gap: 10px; }
+.account-link {
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+  font-family: inherit; font-size: 13px; color: var(--accent-dark);
+}
+.account-link.danger-link { color: var(--danger, oklch(55% 0.19 25)); }
