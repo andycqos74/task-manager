@@ -14,9 +14,20 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # One run per ref; a new push cancels the in-flight build for that ref.
+  # One run at a time per ref.
+  #
+  # Cancelling is right for a pull request — a new push makes the previous
+  # run irrelevant — and wrong for everything else. A push run that gets
+  # cancelled leaves that commit with no image, and on a release ref that is
+  # a silently missing build. Exactly that happened on the first real
+  # publish: two PRs merged 36 seconds apart, and the second push cancelled
+  # the first one's publish job five seconds in.
+  #
+  # With cancelling off, a second push to the same ref QUEUES behind the
+  # first instead, so every commit publishes and they publish in order —
+  # which also stops two runs racing to move :latest.
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
