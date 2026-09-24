@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import impMark from '../assets/imp-cut.png';
+import { BrandMark, Wordmark } from '../components/Brand.jsx';
 
 // The pre-authentication screen. It is one component covering three states,
 // because they are the same form with different copy:
@@ -64,9 +64,8 @@ export default function SignIn({ onSignedIn }) {
     <div className="signin-shell">
       <form className="signin-card" onSubmit={submit}>
         <div className="signin-brand">
-          <span className="brand-this">this</span>
-          <span className="brand-imp"><img src={impMark} alt="" width={78} height={60} /></span>
-          <span>or</span><span className="brand-g">g</span><span>aniser</span>
+          <BrandMark ink="#0F2B3D" size={44} />
+          <Wordmark className="signin-wordmark" />
         </div>
 
         {config.setup_required && mode === 'setup' && (

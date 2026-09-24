@@ -17,7 +17,7 @@ import WorkspaceSwitcher from './components/WorkspaceSwitcher.jsx';
 import AccountMenu from './components/AccountMenu.jsx';
 import SignIn from './views/SignIn.jsx';
 import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon, ColumnsIcon } from './icons.jsx';
-import impMark from './assets/imp-cut.png';
+import { BrandMark, SolwaiMark, Wordmark } from './components/Brand.jsx';
 
 const NAV = [
   { key: 'myday', label: 'My Day', Icon: SunIcon },
@@ -168,13 +168,8 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <button className="brand-mark" onClick={() => goTo({ name: 'myday' })} title="My Day" aria-label="My Day">
-          <span className="brand-this">this</span>
-          <span className="brand-imp">
-            <img src={impMark} alt="" width={78} height={60} />
-            <span className="brand-imp-glow" style={{ top: 24 }} />
-            <span className="brand-imp-glow" style={{ top: 44 }} />
-          </span>
-          <span>or</span><span className="brand-g">g</span><span>aniser</span>
+          <BrandMark ink="#FFFFFF" size={46} />
+          <Wordmark className="brand-wordmark" />
         </button>
         <div className="app-header-actions">
           <WorkspaceSwitcher
@@ -326,6 +321,12 @@ export default function App() {
         refresh={refresh}
         onError={reportError}
       />
+
+      <footer className="app-footer">
+        <span className="app-footer-label">POWERED BY</span>
+        <SolwaiMark size={20} />
+        <span className="app-footer-name">SOLWAI</span>
+      </footer>
     </div>
   );
 }

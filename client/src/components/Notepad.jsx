@@ -6,6 +6,7 @@ const MIN_BLOCK_HEIGHT = 28;
 const MIN_HEIGHT = 120;
 const DEFAULT_HEIGHT = 240;
 const HEADER_H = 78;   // .app-header, --header-h
+const FOOTER_H = 33;   // .app-footer, --footer-h (height + top border)
 const HANDLE_H = 8;    // the resize grip above the toolbar
 const VIEW_MARGIN = 70; // strip of the view left visible above the dock
 
@@ -20,7 +21,7 @@ function dockChrome() {
 
 // How tall the note page may grow before the dock would reach the header.
 function maxHeight() {
-  return Math.max(MIN_HEIGHT, window.innerHeight - HEADER_H - VIEW_MARGIN - dockChrome());
+  return Math.max(MIN_HEIGHT, window.innerHeight - HEADER_H - FOOTER_H - VIEW_MARGIN - dockChrome());
 }
 
 function uid() {

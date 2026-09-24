@@ -1,29 +1,31 @@
-/* Modern redesign — dark teal sidebar/header, warm gold accent, bold
-   typography, priority-colored task cards. Tokens match the design handoff
-   (OKLCH), recreated with the app's own component structure rather than the
-   prototype markup. */
+/* This-Organiser rebrand (SolwAI family identity) — navy sidebar/header, teal
+   accent, bold typography, priority-colored task cards. Tokens match the
+   design handoff (OKLCH), recreated with the app's own component structure
+   rather than the prototype markup. */
 
 :root {
-  --bg: oklch(95% 0.008 264);
-  --sidebar-bg: oklch(26% 0.025 190);
-  --sidebar-bg-2: oklch(20% 0.02 195);
-  --sidebar-bg-3: oklch(28% 0.025 188);
-  --sidebar-border: oklch(42% 0.035 185 / 0.55);
-  --sidebar-chip-bg: oklch(31% 0.03 186);
-  --sidebar-chip-border: oklch(46% 0.03 185);
-  --sidebar-count-bg: oklch(34% 0.03 186);
-  --sidebar-link: oklch(82% 0.11 80);
-  --border: oklch(88% 0.008 264);
-  --card-border: oklch(90% 0.006 265);
-  --text-primary: oklch(16% 0.02 265);
-  --text-secondary: oklch(48% 0.02 265);
-  --text-muted: oklch(63% 0.015 265);
-  --sidebar-text: oklch(92% 0.01 265);
-  --sidebar-text-muted: oklch(66% 0.02 265);
+  --bg: oklch(0.97 0.004 240);
+  --sidebar-bg: #0F2B3D;
+  --sidebar-bg-2: oklch(0.22 0.045 235);
+  --sidebar-bg-3: oklch(0.30 0.05 232);
+  --sidebar-border: oklch(0.42 0.045 230 / 0.55);
+  --sidebar-chip-bg: oklch(0.34 0.05 232);
+  --sidebar-chip-border: oklch(0.50 0.05 230);
+  --sidebar-count-bg: oklch(0.34 0.05 232);
+  --sidebar-link: oklch(0.76 0.10 200);
+  --border: oklch(0.88 0.008 240);
+  --card-border: oklch(0.91 0.007 240);
+  --text-primary: oklch(0.22 0.04 235);
+  --text-secondary: oklch(0.46 0.02 240);
+  --text-muted: oklch(0.60 0.02 240);
+  --sidebar-text: oklch(0.94 0.01 230);
+  --sidebar-text-muted: oklch(0.72 0.03 225);
   --card: #ffffff;
-  --accent: oklch(60% 0.13 66);
-  --accent-dark: oklch(48% 0.12 62);
-  --accent-light: oklch(93% 0.05 78);
+  --accent: oklch(0.52 0.085 205);
+  --accent-dark: oklch(0.44 0.075 210);
+  --accent-light: oklch(0.94 0.03 200);
+  --logo-teal: oklch(0.76 0.10 200);
+  --column-bg: oklch(0.975 0.004 240);
   --success: oklch(64% 0.16 155);
   --success-light: oklch(93% 0.06 155);
   --warning: oklch(74% 0.16 68);
@@ -37,19 +39,28 @@
   --postit-bg: oklch(88% 0.05 95);
   --postit-text: oklch(28% 0.03 80);
   --postit-edge: oklch(80% 0.06 95);
-  --badge-bg: oklch(95% 0.006 265);
-  --tag-bg: oklch(94% 0.02 265);
-  --chip-bg: oklch(93% 0.006 265);
+  --badge-bg: oklch(0.955 0.006 240);
+  --tag-bg: oklch(0.94 0.02 240);
+  --chip-bg: oklch(0.93 0.006 240);
   --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-brand: 'Quadrillion', var(--font-sans);
   --sidebar-w: 262px;
   --header-h: 78px;
+  --footer-h: 33px;
 }
 
 @font-face {
-  font-family: 'Caslon Antique';
-  src: url('./assets/caslon-antique.regular.ttf') format('truetype');
-  font-weight: 400;
-  font-display: swap;
+  font-family: 'Quadrillion';
+  src: url('./assets/quadrillion-el.otf') format('opentype');
+  font-weight: 200;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Quadrillion';
+  src: url('./assets/quadrillion-sb.otf') format('opentype');
+  font-weight: 600;
+  font-display: block;
 }
 
 * { box-sizing: border-box; }
@@ -69,19 +80,31 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
 
 @keyframes slideIn { from { transform: translateX(28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes emberGlow {
-  0%, 100% { text-shadow: 0 0 12px oklch(0.82 0.18 152 / .5), 0 0 30px oklch(0.78 0.2 152 / .28); }
-  50%      { text-shadow: 0 0 18px oklch(0.86 0.2 152 / .75), 0 0 44px oklch(0.8 0.22 152 / .42); }
-}
 
 /* ---------- shell ---------- */
 .app-shell { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 .app { display: flex; flex: 1; min-height: 0; }
 
+/* "Powered by SolwAI" bar — last child of the shell, below the sidebar/main
+   row, app screens only (never rendered on sign-in). */
+.app-footer {
+  flex-shrink: 0; height: var(--footer-h); background: var(--sidebar-bg);
+  border-top: 1px solid var(--sidebar-border); padding: 0 20px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 9px;
+}
+.app-footer-label {
+  font-family: var(--font-brand); font-weight: 200; font-size: 11px;
+  letter-spacing: 0.14em; color: oklch(0.82 0.03 225);
+}
+.app-footer-name {
+  font-family: var(--font-brand); font-weight: 200; font-size: 13px;
+  letter-spacing: 0.14em; color: #fff;
+}
+
 /* ---------- top header ---------- */
 .app-header {
   flex-shrink: 0; height: var(--header-h);
-  background: radial-gradient(120% 200% at 22% 40%, oklch(30% 0.03 178) 0%, oklch(24% 0.022 192) 60%, oklch(20% 0.02 195) 100%);
+  background: radial-gradient(120% 200% at 22% 40%, oklch(0.32 0.05 228) 0%, #0F2B3D 60%, oklch(0.22 0.045 235) 100%);
   border-bottom: 1px solid var(--sidebar-border);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 26px; gap: 20px; box-shadow: 0 4px 18px oklch(10% 0.02 195 / 0.4);
@@ -90,57 +113,47 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   position: relative; z-index: 60;
 }
 .brand-mark {
-  font-family: 'Caslon Antique', Georgia, 'Times New Roman', serif;
-  font-weight: 400; font-size: 34px; letter-spacing: 0.03em;
-  color: oklch(90% 0.13 152); display: flex; align-items: center; line-height: 1; position: relative;
-  animation: emberGlow 3.5s ease-in-out infinite;
+  display: flex; align-items: center; gap: 16px; line-height: 1; position: relative;
   /* It doubles as the link home (My Day), so reset the button chrome. */
   border: none; background: transparent; padding: 0; cursor: pointer;
 }
 .brand-mark:hover { filter: brightness(1.12); }
-.brand-mark:focus-visible { outline: 2px solid oklch(80% 0.13 152); outline-offset: 4px; border-radius: 8px; }
-.brand-this { margin-left: 148px; }
-.brand-imp { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; margin: 0 4px; }
-.brand-imp img { position: relative; top: 1px; z-index: 2; filter: drop-shadow(0 0 14px oklch(70% 0.18 152 / 0.5)); }
-.brand-imp-glow {
-  position: absolute; left: 6px; width: 66px; height: 2px;
-  background: linear-gradient(90deg, transparent, #B87C10 15%, #B87C10 85%, transparent);
-  mix-blend-mode: overlay; box-shadow: 0 0 4px #B87C10; z-index: 3;
+.brand-mark:focus-visible { outline: 2px solid var(--logo-teal); outline-offset: 4px; border-radius: 8px; }
+.brand-wordmark {
+  font-family: var(--font-brand); font-weight: 200; font-size: 23px;
+  letter-spacing: 0.06em; line-height: 1; color: #fff;
 }
-.brand-g { color: #B87C10; font-size: 40px; display: inline-block; vertical-align: top; line-height: 1; position: relative; z-index: 3; }
 .app-header-actions { display: flex; align-items: center; gap: 6px; }
 .header-icon-btn {
   width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--sidebar-border);
-  background: oklch(28% 0.028 188); color: oklch(80% 0.06 165);
+  background: var(--sidebar-bg-3); color: var(--sidebar-text-muted);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative;
 }
-.header-icon-btn:hover { background: oklch(33% 0.03 188); }
+.header-icon-btn:hover { background: var(--sidebar-count-bg); }
 .header-dot {
   position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%;
-  background: #B87C10; box-shadow: 0 0 0 2px oklch(28% 0.028 188);
+  background: var(--logo-teal); box-shadow: 0 0 0 2px var(--sidebar-bg-3);
 }
 .header-search-input {
   width: 200px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--sidebar-border);
-  background: oklch(28% 0.028 188); color: var(--sidebar-text); font-size: 13.5px; font-family: inherit;
+  background: var(--sidebar-bg-3); color: var(--sidebar-text); font-size: 13.5px; font-family: inherit;
 }
-.header-search-input::placeholder { color: oklch(70% 0.02 188); }
+.header-search-input::placeholder { color: var(--sidebar-text-muted); }
 .header-avatar {
   width: 38px; height: 38px; border-radius: 50%; margin-left: 6px;
-  background: linear-gradient(135deg, oklch(62% 0.1 152), oklch(48% 0.09 170));
-  display: flex; align-items: center; justify-content: center; color: oklch(16% 0.02 190);
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  display: flex; align-items: center; justify-content: center; color: #fff;
   font-weight: 800; font-size: 14px; flex-shrink: 0;
-  box-shadow: 0 0 14px oklch(70% 0.18 152 / 0.3);
+  box-shadow: 0 0 14px oklch(0.52 0.085 205 / 0.35);
 }
 
 /* The design has no mobile treatment for the header (it's a fixed-width
    mockup) — shrink it on narrow screens so the wordmark doesn't overflow. */
 @media (max-width: 780px) {
   .app-header { padding: 0 12px; gap: 8px; }
-  .brand-mark { font-size: 20px; }
-  .brand-this { margin-left: 0; }
-  .brand-imp img { width: 46px; height: 36px; }
-  .brand-imp-glow { width: 40px; }
-  .brand-g { font-size: 24px; }
+  .brand-mark { gap: 10px; }
+  .brand-mark svg { width: 30px; height: 21px; }
+  .brand-wordmark { font-size: 15px; }
   .header-search-input { width: 120px; }
   .header-avatar, .header-icon-btn[title='Notifications'] { display: none; }
 }
@@ -159,7 +172,7 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   padding: 6px; margin: -6px; border-radius: 8px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.sidebar-toggle:hover { background: oklch(34% 0.03 186); color: var(--sidebar-text); }
+.sidebar-toggle:hover { background: var(--sidebar-count-bg); color: var(--sidebar-text); }
 .sidebar.collapsed .sidebar-toggle-row { justify-content: center; padding: 0; }
 
 /* Collapsed = a narrow icon-only rail on desktop. */
@@ -202,10 +215,10 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   font-size: 14px; letter-spacing: -0.005em; font-weight: 600;
   background: transparent; color: var(--sidebar-text);
 }
-.nav-item:hover { background: oklch(34% 0.03 186); }
+.nav-item:hover { background: var(--sidebar-count-bg); }
 .nav-item.active {
   font-weight: 800; background: var(--accent); color: #fff;
-  box-shadow: 0 6px 16px -6px oklch(60% 0.13 66 / 0.55);
+  box-shadow: 0 6px 16px -6px oklch(0.52 0.085 205 / 0.55);
 }
 .nav-item.active:hover { background: var(--accent); }
 .nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -246,7 +259,7 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   display: flex; align-items: center; gap: 7px; padding: 9px 16px; border: none;
   border-radius: 10px; background: var(--accent); color: #fff; font-weight: 700;
   font-size: 13.5px; cursor: pointer; flex-shrink: 0;
-  box-shadow: 0 6px 16px -6px oklch(60% 0.13 66 / 0.5);
+  box-shadow: 0 6px 16px -6px oklch(0.52 0.085 205 / 0.5);
 }
 .ai-action-btn:hover { background: var(--accent-dark); }
 .ai-action-btn:disabled { opacity: 0.6; cursor: default; }
@@ -505,10 +518,10 @@ button.danger:hover { background: var(--danger-light); }
 .ws-switcher { position: relative; margin-right: 6px; }
 .ws-chip {
   display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
-  border-radius: 10px; border: 1px solid var(--sidebar-border); background: oklch(28% 0.028 188);
+  border-radius: 10px; border: 1px solid var(--sidebar-border); background: var(--sidebar-bg-3);
   color: var(--sidebar-text); font-size: 13px; font-weight: 700; cursor: pointer; max-width: 210px;
 }
-.ws-chip:hover { background: oklch(33% 0.03 188); }
+.ws-chip:hover { background: var(--sidebar-count-bg); }
 .ws-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-caret { color: var(--sidebar-text-muted); font-size: 10px; flex-shrink: 0; }
@@ -526,7 +539,7 @@ button.danger:hover { background: var(--danger-light); }
   border-radius: 8px; background: transparent; color: var(--sidebar-text);
   font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer;
 }
-.ws-menu-item:hover { background: oklch(34% 0.03 186); }
+.ws-menu-item:hover { background: var(--sidebar-count-bg); }
 .ws-menu-item.active { font-weight: 800; }
 .ws-menu-item.manage { color: var(--sidebar-link); font-weight: 700; }
 .ws-tick { margin-left: auto; color: var(--sidebar-link); }
@@ -551,7 +564,7 @@ button.danger:hover { background: var(--danger-light); }
 }
 .kanban-board { display: flex; gap: 12px; overflow-x: auto; align-items: flex-start; padding-bottom: 6px; }
 .kanban-col {
-  flex: 0 0 264px; background: oklch(97% 0.005 265); border: 1px solid var(--card-border);
+  flex: 0 0 264px; background: var(--column-bg); border: 1px solid var(--card-border);
   border-radius: 13px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 120px;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -610,10 +623,10 @@ button.danger:hover { background: var(--danger-light); }
 
 /* ---------- notepad dock (always visible, fixed beside sidebar) ---------- */
 .notepad-dock {
-  position: fixed; left: var(--sidebar-w); right: 0; bottom: 0; z-index: 40;
+  position: fixed; left: var(--sidebar-w); right: 0; bottom: var(--footer-h); z-index: 40;
   background: linear-gradient(180deg, var(--sidebar-bg-3), var(--sidebar-bg));
   border-top: 1px solid var(--sidebar-border);
-  box-shadow: 0 -10px 28px oklch(15% 0.02 265 / 0.3);
+  box-shadow: 0 -10px 28px oklch(0.12 0.03 235 / 0.3);
   display: flex; flex-direction: column;
   transition: left 0.18s ease;
 }
@@ -622,8 +635,8 @@ button.danger:hover { background: var(--danger-light); }
 }
 
 .notepad-resize-handle { height: 8px; cursor: ns-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.notepad-resize-grip { width: 44px; height: 4px; border-radius: 2px; background: oklch(42% 0.025 186); }
-.notepad-resize-handle:hover .notepad-resize-grip { background: oklch(56% 0.025 186); }
+.notepad-resize-grip { width: 44px; height: 4px; border-radius: 2px; background: oklch(0.42 0.035 230); }
+.notepad-resize-handle:hover .notepad-resize-grip { background: oklch(0.56 0.035 230); }
 
 /* One scrolling row of grouped controls, split by hairline dividers. The two
    wrappers inside are display:contents here so every control is a direct flex
@@ -810,10 +823,12 @@ button.danger:hover { background: var(--danger-light); }
   display: flex; flex-direction: column;
 }
 .signin-brand {
-  display: flex; align-items: center; justify-content: center; gap: 2px;
-  font-size: 26px; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 18px;
+  display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 18px;
 }
-.signin-brand .brand-imp img { display: block; }
+.signin-wordmark {
+  font-family: var(--font-brand); font-weight: 200; font-size: 21px;
+  letter-spacing: 0.06em; line-height: 1; color: #0F2B3D;
+}
 .signin-lead {
   margin: 0 0 16px; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary);
 }
@@ -832,7 +847,7 @@ button.danger:hover { background: var(--danger-light); }
 .signin-submit {
   padding: 11px 16px; border: none; border-radius: 10px; background: var(--accent);
   color: #fff; font-weight: 700; font-size: 14.5px; font-family: inherit; cursor: pointer;
-  box-shadow: 0 6px 16px -6px oklch(60% 0.13 66 / 0.5);
+  box-shadow: 0 6px 16px -6px oklch(0.52 0.085 205 / 0.5);
 }
 .signin-submit:disabled { opacity: 0.6; cursor: default; }
 .signin-switch {

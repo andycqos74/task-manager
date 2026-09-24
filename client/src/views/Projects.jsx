@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { api } from '../api.js';
 
 const COLORS = [
-  'oklch(60% 0.13 66)',  // gold (accent)
-  'oklch(60% 0.14 155)', // green
-  'oklch(72% 0.15 75)',  // amber
-  'oklch(58% 0.16 25)',  // red
-  'oklch(58% 0.14 300)', // purple
+  'oklch(0.52 0.085 205)', // teal (accent)
+  'oklch(60% 0.14 155)',   // green
+  'oklch(72% 0.15 75)',    // amber
+  'oklch(58% 0.16 25)',    // red
+  'oklch(58% 0.14 300)',   // purple
 ];
 
 export default function Projects({ projects, refresh, onError, setView }) {
