@@ -1,6 +1,6 @@
 {
-  "name": "this-organiser",
-  "short_name": "organiser",
+  "name": "This-Organiser",
+  "short_name": "This-Organiser",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -15,7 +15,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#22302e",
-  "background_color": "#22302e",
+  "theme_color": "#0F2B3D",
+  "background_color": "#0F2B3D",
   "display": "standalone"
 }
