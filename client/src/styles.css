@@ -282,6 +282,12 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
 }
 .quick-add-plus { color: var(--accent); font-weight: 700; font-size: 16px; }
 .quick-add input { flex: 1; border: none; outline: none; padding: 11px 0; background: transparent; font-size: 14.5px; font-family: inherit; color: var(--text-primary); }
+.quick-add-queued { font-size: 12.5px; color: var(--accent-dark); white-space: nowrap; }
+@media (max-width: 780px) { .quick-add { flex-wrap: wrap; } .quick-add-queued { white-space: normal; padding-bottom: 8px; } }
+
+/* Shown while the server can't be reached. */
+.offline-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.offline-banner .btn-outline { margin-left: auto; }
 
 /* ---------- task list ---------- */
 .task-list { display: flex; flex-direction: column; gap: 7px; }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, formatEstimate } from '../api.js';
+import { disablePush, enablePush, pushStatus, pushUnavailableReason } from '../pwa.js';
 
 export default function Settings({ settings, refresh, onError }) {
   const [keyInput, setKeyInput] = useState('');
@@ -114,6 +115,9 @@ export default function Settings({ settings, refresh, onError }) {
           </div>
         </div>
       </div>
+
+      <NotificationSettings settings={settings} save={save} onError={onError} />
+
       <div className="banner info" style={{ marginTop: 24 }}>
         <strong>How Do dates work:</strong> by default, Do date = Due date − Estimated TTC. The due date itself
         counts as a working day, so a task that fits within one workday starts on its due date; only whole extra
@@ -121,6 +125,93 @@ export default function Settings({ settings, refresh, onError }) {
         to return to automatic.
       </div>
     </div>
+  );
+}
+
+// The daily digest: one push each morning listing what's overdue, due today
+// and in My Day. Turning it on subscribes *this* browser; each device the
+// person wants it on is switched on separately.
+function NotificationSettings({ settings, save, onError }) {
+  const unavailable = pushUnavailableReason();
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    if (unavailable) return;
+    pushStatus().then(setStatus).catch(() => setStatus({ subscribed: false, permission: 'default' }));
+  }, [unavailable]);
+
+  async function toggle() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      if (status?.subscribed) await disablePush();
+      else await enablePush();
+      setStatus(await pushStatus());
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTest() {
+    try {
+      const { sent } = await api.post('/push/test');
+      setNotice(sent ? 'Test sent — it should arrive in a few seconds.' : 'No device could be reached. Try turning notifications off and on again.');
+    } catch (err) {
+      onError(err);
+    }
+  }
+
+  return (
+    <>
+      <label className="section-label">Notifications</label>
+      <div className="field-grid settings-fields">
+        <label>This device</label>
+        <div>
+          {unavailable ? (
+            <span className="hint">{unavailable}</span>
+          ) : status?.permission === 'denied' ? (
+            <span className="hint">Notifications are blocked for this site. Allow them in your browser's site settings, then come back here.</span>
+          ) : (
+            <div className="inline">
+              <button className="btn-outline" onClick={toggle} disabled={busy || !status}>
+                {status?.subscribed ? 'Turn off on this device' : 'Turn on for this device'}
+              </button>
+              {status?.subscribed && <button className="link" onClick={sendTest}>send a test</button>}
+            </div>
+          )}
+          {notice && <div className="hint" style={{ marginTop: 4 }}>{notice}</div>}
+        </div>
+
+        <label>Daily digest</label>
+        <div>
+          <div className="inline">
+            <label className="inline">
+              <input
+                type="checkbox"
+                checked={settings.digest_enabled !== false}
+                onChange={(e) => save({ digest_enabled: e.target.checked })}
+              />
+              Send at
+            </label>
+            <input
+              type="time"
+              key={settings.digest_time}
+              defaultValue={settings.digest_time || '09:00'}
+              disabled={settings.digest_enabled === false}
+              onBlur={(e) => e.target.value && e.target.value !== settings.digest_time && save({ digest_time: e.target.value })}
+            />
+          </div>
+          <div className="hint" style={{ marginTop: 4 }}>
+            A morning summary of overdue tasks, tasks due today and your My Day list, sent to every device you've turned
+            notifications on for. Skipped on days with nothing to report. Times follow the server's clock.
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
