@@ -7,22 +7,43 @@ let onUnauthorized = () => {};
 export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, { offline = false } = {}) {
     super(message);
     this.status = status;
+    // The server couldn't be reached at all (or, for a read, only the service
+    // worker's saved copy was missing) — as opposed to it saying no.
+    this.offline = offline;
   }
 }
 
+// Tells the app whether the last answer came live from the server or from the
+// service worker's offline copy (sw.js marks those with X-Offline-Cache).
+function reportConnection(offline) {
+  window.dispatchEvent(new CustomEvent('api-connection', { detail: { offline } }));
+}
+
 async function request(method, path, body) {
-  const res = await fetch(`/api${path}`, {
-    method,
-    // Always declared, even with no body: the server requires it on every
-    // state-changing request as its CSRF defence, because a bodyless
-    // cross-origin POST would otherwise be a "simple request" the browser
-    // sends with our cookie attached.
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      // Always declared, even with no body: the server requires it on every
+      // state-changing request as its CSRF defence, because a bodyless
+      // cross-origin POST would otherwise be a "simple request" the browser
+      // sends with our cookie attached.
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // fetch only rejects when no response arrived at all.
+    reportConnection(true);
+    throw new ApiError("You're offline — that change wasn't saved. Try again once you're reconnected.", 0, { offline: true });
+  }
+  const cached = res.headers.get('X-Offline-Cache');
+  reportConnection(!!cached);
+  if (cached === 'miss') {
+    throw new ApiError("You're offline and this view hasn't been saved on this device yet.", 0, { offline: true });
+  }
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
     let body = null;

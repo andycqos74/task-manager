@@ -18,6 +18,8 @@ import * as Notes from './data/notes.js';
 import * as Dev from './data/dev.js';
 import * as Ideas from './data/ideas.js';
 import * as Boards from './data/boards.js';
+import * as Push from './data/push.js';
+import { vapidKeys, sendToUser, digestTime } from './push.js';
 
 export const router = Router();
 
@@ -1038,6 +1040,8 @@ function publicSettings(scope) {
     ai_key_source: hasDbKey ? 'settings' : hasEnvKey ? 'env' : 'none',
     ai_key_last4: hasDbKey ? dbKey.slice(-4) : null,
     ai_prompt: s.ai_prompt || '',
+    digest_enabled: s.digest_enabled !== '0',
+    digest_time: digestTime(s),
   };
 }
 
@@ -1058,6 +1062,15 @@ router.patch('/settings', (req, res) => {
     if (key) setSetting(req.scope, 'anthropic_api_key', key);
     else deleteSetting(req.scope, 'anthropic_api_key');
   }
+  if ('digest_enabled' in b) setSetting(req.scope, 'digest_enabled', b.digest_enabled ? '1' : '0');
+  if ('digest_time' in b) {
+    if (typeof b.digest_time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.digest_time)) {
+      return badRequest(res, 'digest_time must be HH:MM');
+    }
+    setSetting(req.scope, 'digest_time', b.digest_time);
+    // A new time today should still fire today.
+    deleteSetting(req.scope, 'digest_last_sent');
+  }
   if ('ai_prompt' in b) {
     if (typeof b.ai_prompt !== 'string') return badRequest(res, 'ai_prompt must be a string');
     const prompt = b.ai_prompt.trim();
@@ -1066,6 +1079,62 @@ router.patch('/settings', (req, res) => {
     else deleteSetting(req.scope, 'ai_prompt');
   }
   res.json(publicSettings(req.scope));
+});
+
+// ---------- push notifications ----------
+// The server POSTs to whatever endpoint a subscription names, so an arbitrary
+// URL would let any signed-in user aim this server at internal hosts. Only the
+// browsers' own push services are accepted.
+const PUSH_HOST_SUFFIXES = [
+  'fcm.googleapis.com', // Chrome, Edge, Android
+  'push.services.mozilla.com', // Firefox
+  'push.apple.com', // Safari, iOS home-screen apps
+  'notify.windows.com', // legacy Edge
+];
+
+function validPushEndpoint(value) {
+  if (typeof value !== 'string' || value.length > 2048) return false;
+  let url;
+  try { url = new URL(value); } catch { return false; }
+  if (url.protocol !== 'https:') return false;
+  const host = url.hostname.toLowerCase();
+  return PUSH_HOST_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`));
+}
+
+const PUSH_KEY = /^[A-Za-z0-9_-]{1,200}={0,2}$/;
+
+router.get('/push/config', (req, res) => res.json({ public_key: vapidKeys().publicKey }));
+
+router.post('/push/subscribe', (req, res) => {
+  const sub = req.body?.subscription || {};
+  if (!validPushEndpoint(sub.endpoint)) return badRequest(res, 'unsupported push endpoint');
+  const { p256dh, auth } = sub.keys || {};
+  if (!PUSH_KEY.test(p256dh || '') || !PUSH_KEY.test(auth || '')) return badRequest(res, 'invalid subscription keys');
+  Push.saveSubscription(req.scope.userId, { endpoint: sub.endpoint, p256dh, auth, userAgent: req.get('user-agent') });
+  res.status(201).json({ subscribed: true });
+});
+
+router.post('/push/unsubscribe', (req, res) => {
+  if (typeof req.body?.endpoint !== 'string') return badRequest(res, 'endpoint is required');
+  Push.deleteSubscription(req.scope.userId, req.body.endpoint);
+  res.json({ subscribed: false });
+});
+
+// Whether this browser's subscription is registered to the caller. POST so
+// the endpoint, which is a bearer capability, stays out of URLs and logs.
+router.post('/push/status', (req, res) => {
+  const endpoint = req.body?.endpoint;
+  res.json({ subscribed: typeof endpoint === 'string' && Push.hasSubscription(req.scope.userId, endpoint) });
+});
+
+router.post('/push/test', async (req, res) => {
+  const sent = await sendToUser(req.scope.userId, {
+    title: 'Notifications are on',
+    body: 'This is what your daily digest will look like.',
+    tag: 'test',
+    url: '/',
+  });
+  res.json({ sent });
 });
 
 router.get('/ai/status', (req, res) => res.json({ available: aiAvailable(req.scope) }));

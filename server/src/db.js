@@ -208,6 +208,20 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL
 );
 
+-- Web Push endpoints, one per browser that asked for notifications. The
+-- endpoint is a capability URL issued by the browser's push service; whoever
+-- holds it can deliver to that browser, so it is only ever handed to the
+-- server by the browser itself.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
 CREATE INDEX IF NOT EXISTS idx_board_columns_board ON board_columns(board_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

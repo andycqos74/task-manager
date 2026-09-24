@@ -36,6 +36,11 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - AI_ENV_KEY_SHARED=${AI_ENV_KEY_SHARED:-}
       - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-opus-4-8}
+      # "Today" and the daily digest time follow this; the container is UTC
+      # otherwise. e.g. TZ=Europe/London
+      - TZ=${TZ:-}
+      # Contact for browser push services (mailto: or https:). Optional.
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-}
     volumes:
       # Persists the SQLite database (server writes to DATA_DIR=/data).
       - taskdata:/data

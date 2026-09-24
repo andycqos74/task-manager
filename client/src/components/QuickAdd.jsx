@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../api.js';
+import { queueTask } from '../pwa.js';
 
 // Quick capture: type a title, press Enter, done. Details can be added later
 // by opening the task. `defaults` lets each view pre-fill context
@@ -7,6 +8,7 @@ import { api } from '../api.js';
 export default function QuickAdd({ defaults = {}, onCreated, onError, placeholder }) {
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const [queued, setQueued] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
@@ -18,7 +20,15 @@ export default function QuickAdd({ defaults = {}, onCreated, onError, placeholde
       setTitle('');
       onCreated?.(task);
     } catch (err) {
-      onError?.(err);
+      // No connection: keep it on this device and send it on reconnect
+      // (App flushes the queue), rather than losing what was typed.
+      if (err.offline && queueTask({ title: trimmed, ...defaults })) {
+        setTitle('');
+        setQueued(true);
+        setTimeout(() => setQueued(false), 4000);
+      } else {
+        onError?.(err);
+      }
     } finally {
       setBusy(false);
     }
@@ -33,6 +43,7 @@ export default function QuickAdd({ defaults = {}, onCreated, onError, placeholde
         placeholder={placeholder || 'Add a task — press Enter'}
         disabled={busy}
       />
+      {queued && <span className="quick-add-queued">Saved offline — it'll be added when you reconnect</span>}
     </form>
   );
 }

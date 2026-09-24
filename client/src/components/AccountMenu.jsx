@@ -6,7 +6,7 @@ import { api } from '../api.js';
 //
 // In single-user mode there is no session to end, so the menu shows the mode
 // rather than a sign-out button that would do nothing.
-export default function AccountMenu({ user, onSignedOut, onError }) {
+export default function AccountMenu({ user, beforeSignOut, onSignedOut, onError }) {
   const [open, setOpen] = useState(false);
   const [changing, setChanging] = useState(false);
   const [current, setCurrent] = useState('');
@@ -28,6 +28,7 @@ export default function AccountMenu({ user, onSignedOut, onError }) {
 
   async function signOut() {
     try {
+      await beforeSignOut?.();
       await api.post('/auth/logout');
       onSignedOut();
     } catch (err) {

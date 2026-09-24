@@ -129,6 +129,29 @@ come (MFA, encryption of stored secrets, password reset).
 - **Extras** — subtask checklists, tags with search/filter, recurring tasks
   (daily/weekly/monthly — completing one spawns the next occurrence).
 
+## Install, offline and notifications
+
+The UI is an installable Progressive Web App. On Android (Chrome) use **Install app** from
+the browser menu; on iPhone/iPad use **Share → Add to Home Screen**; on desktop Chrome/Edge
+use the install icon in the address bar.
+
+- **Offline** — a service worker (`client/sw.js`, emitted as `/sw.js` by the production
+  build) caches the app itself, so it opens with no connection, and keeps the last answer to
+  every read, so views you've opened before show their saved data with an "offline" banner.
+  Edits need the server, with one exception: **quick-add works offline** — tasks are queued
+  on the device and sent when the server is reachable again. Signing out clears the saved
+  data and the queue. Dev mode (`npm run dev`) has no service worker, to keep hot reload sane.
+- **Notifications** — Settings → Notifications turns on Web Push for that device, and each
+  device is turned on separately. The server sends a **daily digest** (overdue, due today,
+  My Day) at a time you choose, which defaults to your workday start, and skips days with
+  nothing to report. Push needs the app served over **HTTPS** (or `localhost`). On iOS it
+  only works when the app is opened from the Home Screen. The server's VAPID keys are
+  generated on first use and stored in the database. To pin them yourself, set
+  `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`. A public instance should set `VAPID_SUBJECT` to a
+  `mailto:` or `https:` contact.
+- **Timezone** — "today", and so the digest time, follow the server's clock. In Docker that
+  is UTC unless you set `TZ` (e.g. `TZ=Europe/London`).
+
 ## AI integration
 
 `server/src/ai.js` calls the Claude API (`claude-opus-4-8` by default, override with

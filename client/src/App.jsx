@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { api, setUnauthorizedHandler } from './api.js';
+import { clearApiCache, clearOutbox, disablePush, flushOutbox, pendingTaskCount, setCurrentUser } from './pwa.js';
 import MyDay from './views/MyDay.jsx';
 import Schedule from './views/Schedule.jsx';
 import AllTasks from './views/AllTasks.jsx';
@@ -56,6 +57,10 @@ export default function App() {
   const [taskSearch, setTaskSearch] = useState('');
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
+  // True while the server can't be reached; views are then showing whatever
+  // the service worker saved last time they loaded.
+  const [offline, setOffline] = useState(() => !navigator.onLine);
+  const [pendingTasks, setPendingTasks] = useState(0);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -75,6 +80,37 @@ export default function App() {
       .catch(() => { if (!cancelled) setUser(null); });
     return () => { cancelled = true; };
   }, []);
+
+  // Offline tracking. navigator.onLine alone can't tell "no network" from
+  // "server down", so api.js also reports whether each answer was live.
+  useEffect(() => {
+    const onConnection = (e) => setOffline(e.detail.offline);
+    const goOffline = () => setOffline(true);
+    const goOnline = () => refresh(); // the next answer decides whether we're really back
+    window.addEventListener('api-connection', onConnection);
+    window.addEventListener('offline', goOffline);
+    window.addEventListener('online', goOnline);
+    return () => {
+      window.removeEventListener('api-connection', onConnection);
+      window.removeEventListener('offline', goOffline);
+      window.removeEventListener('online', goOnline);
+    };
+  }, [refresh]);
+
+  // Quick-adds made offline wait in a queue tied to this user; send them as
+  // soon as the server answers live again, then reload so they show up.
+  useEffect(() => {
+    setCurrentUser(user?.id);
+    const count = () => setPendingTasks(pendingTaskCount());
+    count();
+    window.addEventListener('outbox-change', count);
+    return () => window.removeEventListener('outbox-change', count);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || offline || pendingTasks === 0) return;
+    flushOutbox().then((created) => { if (created) refresh(); });
+  }, [user, offline, pendingTasks, refresh]);
 
   // Auto-collapse (or re-expand) the sidebar when the viewport crosses the
   // narrow-screen breakpoint, independent of any manual toggle in between.
@@ -124,6 +160,8 @@ export default function App() {
   const switchWorkspace = useCallback(async (id) => {
     try {
       await api.post(`/workspaces/${id}/activate`);
+      // Saved reads belong to the old workspace from here on.
+      await clearApiCache({ keepSession: true });
       setActiveWorkspaceId(id);
       setSelectedTaskId(null);
       setTaskSearch('');
@@ -197,7 +235,16 @@ export default function App() {
           </button>
           <AccountMenu
             user={user}
-            onSignedOut={() => { setUser(null); setWorkspaces([]); setProjects([]); }}
+            beforeSignOut={async () => {
+              // This browser must stop receiving this person's digest, and the
+              // next person on it must not find their tasks saved offline.
+              await disablePush().catch(() => {});
+            }}
+            onSignedOut={() => {
+              clearApiCache().catch(() => {});
+              clearOutbox();
+              setUser(null); setWorkspaces([]); setProjects([]);
+            }}
             onError={reportError}
           />
         </div>
@@ -284,6 +331,17 @@ export default function App() {
 
         <main className="main">
           {error && <div className="toast error">{error}</div>}
+          {(offline || pendingTasks > 0) && (
+            <div className="banner info offline-banner" role="status">
+              <span>
+                {offline
+                  ? "You're offline — showing what was saved on this device. Changes can't be saved until you reconnect, but quick-add still works."
+                  : 'Reconnected — syncing tasks added offline…'}
+                {pendingTasks > 0 && ` ${pendingTasks} task${pendingTasks === 1 ? '' : 's'} waiting to sync.`}
+              </span>
+              {offline && <button className="btn-outline" onClick={refresh}>Retry</button>}
+            </div>
+          )}
           {view.name === 'myday' && <MyDay {...viewProps} />}
           {view.name === 'schedule' && <Schedule {...viewProps} />}
           {view.name === 'all' && <AllTasks {...allTasksProps} />}
