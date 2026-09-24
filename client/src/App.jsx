@@ -17,7 +17,7 @@ import WorkspaceSwitcher from './components/WorkspaceSwitcher.jsx';
 import AccountMenu from './components/AccountMenu.jsx';
 import SignIn from './views/SignIn.jsx';
 import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon, ColumnsIcon } from './icons.jsx';
-import { BrandMark, SolwaiMark, Wordmark } from './components/Brand.jsx';
+import { BrandMark, SolwaiMark, SolwaiWordmark, Wordmark } from './components/Brand.jsx';
 
 const NAV = [
   { key: 'myday', label: 'My Day', Icon: SunIcon },
@@ -168,7 +168,7 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <button className="brand-mark" onClick={() => goTo({ name: 'myday' })} title="My Day" aria-label="My Day">
-          <BrandMark ink="#FFFFFF" size={46} />
+          <BrandMark theme="dark" size={46} />
           <Wordmark className="brand-wordmark" />
         </button>
         <div className="app-header-actions">
@@ -324,8 +324,8 @@ export default function App() {
 
       <footer className="app-footer">
         <span className="app-footer-label">POWERED BY</span>
-        <SolwaiMark size={20} />
-        <span className="app-footer-name">SOLWAI</span>
+        <SolwaiMark theme="dark" size={20} />
+        <SolwaiWordmark className="app-footer-name" theme="dark" />
       </footer>
     </div>
   );

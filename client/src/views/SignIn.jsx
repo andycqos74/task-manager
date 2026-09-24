@@ -64,7 +64,7 @@ export default function SignIn({ onSignedIn }) {
     <div className="signin-shell">
       <form className="signin-card" onSubmit={submit}>
         <div className="signin-brand">
-          <BrandMark ink="#0F2B3D" size={44} />
+          <BrandMark theme="light" size={44} />
           <Wordmark className="signin-wordmark" />
         </div>
 

@@ -59,7 +59,7 @@
 @font-face {
   font-family: 'Quadrillion';
   src: url('./assets/quadrillion-sb.otf') format('opentype');
-  font-weight: 600;
+  font-weight: 600 700;
   font-display: block;
 }
 
@@ -97,8 +97,8 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   letter-spacing: 0.14em; color: oklch(0.82 0.03 225);
 }
 .app-footer-name {
-  font-family: var(--font-brand); font-weight: 200; font-size: 13px;
-  letter-spacing: 0.14em; color: #fff;
+  font-family: var(--font-brand); font-weight: 700; font-size: 13px;
+  letter-spacing: 0.01em; color: #fff;
 }
 
 /* ---------- top header ---------- */
@@ -148,12 +148,13 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
 }
 
 /* The design has no mobile treatment for the header (it's a fixed-width
-   mockup) — shrink it on narrow screens so the wordmark doesn't overflow. */
+   mockup). The logo spec's minimum size for the product wordmark on navy is
+   20px — rather than shrink it below that, drop it and show the mark alone
+   (its own "app icon" scale) once space is tight. */
 @media (max-width: 780px) {
   .app-header { padding: 0 12px; gap: 8px; }
-  .brand-mark { gap: 10px; }
-  .brand-mark svg { width: 30px; height: 21px; }
-  .brand-wordmark { font-size: 15px; }
+  .brand-mark svg { width: 34px; height: 24px; }
+  .brand-wordmark { display: none; }
   .header-search-input { width: 120px; }
   .header-avatar, .header-icon-btn[title='Notifications'] { display: none; }
 }
