@@ -4,12 +4,14 @@ import QuickAdd from '../components/QuickAdd.jsx';
 import TaskList from '../components/TaskList.jsx';
 import DevTracker from '../components/DevTracker.jsx';
 import WorkspaceMove from '../components/WorkspaceMove.jsx';
+import { GitHubMark } from '../components/GitHubIssue.jsx';
 
-export default function ProjectDetail({ projectId, refreshKey, refresh, onSelectTask, onError, setView, workspaces, activeWorkspaceId }) {
+export default function ProjectDetail({ projectId, refreshKey, refresh, onSelectTask, onError, setView, workspaces, activeWorkspaceId, settings }) {
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [showDone, setShowDone] = useState(false);
   const [tab, setTab] = useState('tasks');
+  const githubReady = !!settings?.github_available;
 
   useEffect(() => {
     api.get('/projects').then((all) => {
@@ -99,6 +101,9 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
           onMove={moveToWorkspace}
           hint="Moving takes the project's tasks, epics, stories, ideas, bugs and notes with it"
         />
+        <label>GitHub repo</label>
+        <GitHubRepoField project={project} githubReady={githubReady} onSave={(repo) => patch({ github_repo: repo })}
+          refresh={refresh} onError={onError} />
         <label>Track development</label>
         <label className="inline">
           <input type="checkbox" checked={!!project.track_dev} onChange={(e) => patch({ track_dev: e.target.checked })} />
@@ -114,7 +119,8 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
       )}
 
       {devTab ? (
-        <DevTracker projectId={project.id} refreshKey={refreshKey} refresh={refresh} onSelectTask={onSelectTask} onError={onError} />
+        <DevTracker projectId={project.id} refreshKey={refreshKey} refresh={refresh} onSelectTask={onSelectTask} onError={onError}
+          canPush={githubReady && !!project.github_repo} />
       ) : (
         <>
           <div className="filters">
@@ -130,6 +136,70 @@ export default function ProjectDetail({ projectId, refreshKey, refresh, onSelect
             onSelect={onSelectTask} onChanged={refresh} onError={onError} />
         </>
       )}
+    </div>
+  );
+}
+
+// The repository this project's epics, stories, tasks and bugs are pushed to,
+// picked from the token's repos (or typed / pasted as a URL), plus a sync that
+// pulls issue state back: issues closed on GitHub complete their items here.
+function GitHubRepoField({ project, githubReady, onSave, refresh, onError }) {
+  const [repos, setRepos] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    if (githubReady) api.get('/github/repos').then(setRepos).catch(() => setRepos([]));
+  }, [githubReady]);
+
+  async function sync() {
+    setSyncing(true);
+    setNotice(null);
+    try {
+      const r = await api.post(`/projects/${project.id}/github/sync`);
+      const parts = [`Checked ${r.checked} issue${r.checked === 1 ? '' : 's'}`];
+      if (r.completed) parts.push(`${r.completed} closed on GitHub and marked done here`);
+      if (r.failed.length) parts.push(`${r.failed.length} failed: ${r.failed.map((f) => `${f.title} (${f.error})`).join('; ')}`);
+      setNotice(parts.join(' · '));
+      refresh();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="inline">
+        <input
+          key={`gh-${project.updated_at}`}
+          list={`gh-repos-${project.id}`}
+          defaultValue={project.github_repo || ''}
+          placeholder="owner/repository"
+          onBlur={(e) => e.target.value.trim() !== (project.github_repo || '') && onSave(e.target.value.trim() || null)}
+          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+        />
+        <datalist id={`gh-repos-${project.id}`}>
+          {repos.map((r) => <option key={r.full_name} value={r.full_name} />)}
+        </datalist>
+        {project.github_repo && (
+          <a className="link" href={`https://github.com/${project.github_repo}`} target="_blank" rel="noreferrer">
+            <GitHubMark /> open
+          </a>
+        )}
+        {project.github_repo && githubReady && (
+          <button className="btn-outline" onClick={sync} disabled={syncing} title="Mark items done whose issues were closed on GitHub">
+            {syncing ? 'Syncing…' : 'Sync from GitHub'}
+          </button>
+        )}
+      </div>
+      <div className="hint" style={{ marginTop: 4 }}>
+        {githubReady
+          ? 'Epics, stories, tasks and bugs in this project can be pushed to this repository as issues.'
+          : 'Add a GitHub token in Settings to push this project\'s work to GitHub as issues.'}
+      </div>
+      {notice && <div className="hint" style={{ marginTop: 4 }}>{notice}</div>}
     </div>
   );
 }

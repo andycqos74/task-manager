@@ -116,6 +116,8 @@ export default function Settings({ settings, refresh, onError }) {
         </div>
       </div>
 
+      <GitHubSettings settings={settings} refresh={refresh} onError={onError} />
+
       <NotificationSettings settings={settings} save={save} onError={onError} />
 
       <div className="banner info" style={{ marginTop: 24 }}>
@@ -270,6 +272,88 @@ function WorkspaceSettings({ refresh, onError }) {
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New workspace name" />
         <button type="submit" className="btn-outline">Add workspace</button>
       </form>
+    </>
+  );
+}
+
+// GitHub: a personal access token, write-only like the Claude key. With one
+// saved, projects can be linked to a repository and their epics, stories,
+// tasks and bugs pushed to it as issues.
+function GitHubSettings({ settings, refresh, onError }) {
+  const [token, setToken] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    if (!settings.github_available) { setStatus(null); return; }
+    api.get('/github/status').then(setStatus).catch((err) => setStatus({ error: err.message }));
+  }, [settings.github_available, settings.github_token_last4]);
+
+  async function saveToken(value) {
+    setSaving(true);
+    try {
+      await api.patch('/settings', { github_token: value });
+      setToken('');
+      refresh();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function removeToken() {
+    if (!confirm('Remove the saved GitHub token? Existing issue links are kept, but nothing can be pushed until a token is added again.')) return;
+    saveToken('');
+  }
+
+  return (
+    <>
+      <label className="section-label">GitHub</label>
+      <div className="field-grid settings-fields">
+        <label>Connection</label>
+        <div>
+          {!settings.github_available && (
+            <span className="hint">Not connected. Add a token below, then link a project to a repository from its page.</span>
+          )}
+          {status?.user && <span className="ai-badge on">Connected as @{status.user.login}</span>}
+          {status?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{status.error}</span>}
+        </div>
+
+        <label>Access token</label>
+        <div>
+          {settings.github_token_source === 'settings' && (
+            <div className="inline" style={{ marginBottom: 6 }}>
+              <span className="badge">token saved · ···· {settings.github_token_last4}</span>
+              <button className="link" onClick={removeToken}>remove</button>
+            </div>
+          )}
+          {settings.github_token_source === 'env' && (
+            <div className="hint" style={{ marginBottom: 6 }}>
+              Using the <code>GITHUB_TOKEN</code> environment variable. Save a token here to override it.
+            </div>
+          )}
+          <div className="inline">
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder="github_pat_… or ghp_…"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && token.trim() && saveToken(token.trim())}
+            />
+            <button className="btn-outline" onClick={() => saveToken(token.trim())} disabled={saving || !token.trim()}>
+              {settings.github_token_source === 'settings' ? 'Update token' : 'Save token'}
+            </button>
+          </div>
+          <div className="hint" style={{ marginTop: 4 }}>
+            A fine-grained personal access token with <strong>Issues: read and write</strong> on the repositories you
+            want to push to (or a classic token with the <code>repo</code> scope). Create one at{' '}
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">github.com/settings/tokens</a>.
+            Stored on this server and never shown again after saving.
+          </div>
+        </div>
+      </div>
     </>
   );
 }

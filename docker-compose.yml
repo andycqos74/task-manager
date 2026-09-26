@@ -35,6 +35,9 @@ services:
       # AI_ENV_KEY_SHARED=0 to restrict AI to users who supply their own.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - AI_ENV_KEY_SHARED=${AI_ENV_KEY_SHARED:-}
+      # Optional GitHub fallback token (Settings -> GitHub is the usual place).
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_ENV_TOKEN_SHARED=${GITHUB_ENV_TOKEN_SHARED:-}
       - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-opus-4-8}
       # "Today" and the daily digest time follow this; the container is UTC
       # otherwise. e.g. TZ=Europe/London

@@ -19,7 +19,9 @@ import * as Dev from './data/dev.js';
 import * as Ideas from './data/ideas.js';
 import * as Boards from './data/boards.js';
 import * as Push from './data/push.js';
+import * as GitHubLinks from './data/github.js';
 import { vapidKeys, sendToUser, digestTime } from './push.js';
+import * as GitHub from './github.js';
 
 export const router = Router();
 
@@ -111,9 +113,12 @@ router.post('/projects', (req, res) => {
   if (!name || !String(name).trim()) return badRequest(res, 'name is required');
   if (!PROJECT_STATUSES.includes(status)) return badRequest(res, 'invalid status');
   for (const d of [start_date, target_date]) if (d != null && !isValidISODate(d)) return badRequest(res, 'invalid date');
-  res.status(201).json(Projects.createProject(req.scope, {
+  const repo = GitHub.normaliseRepo((req.body || {}).github_repo);
+  if (repo && !GitHub.isValidRepo(repo)) return badRequest(res, 'github_repo must look like owner/name');
+  const project = Projects.createProject(req.scope, {
     name: String(name).trim(), description, status, color, start_date, target_date,
-  }));
+  });
+  res.status(201).json(repo ? Projects.updateProject(req.scope, project, { github_repo: repo }) : project);
 });
 
 router.patch('/projects/:id', (req, res) => {
@@ -123,6 +128,12 @@ router.patch('/projects/:id', (req, res) => {
   const updates = {};
   for (const key of allowed) if (key in (req.body || {})) updates[key] = req.body[key];
   if ('track_dev' in (req.body || {})) updates.track_dev = req.body.track_dev ? 1 : 0;
+  if ('github_repo' in (req.body || {})) {
+    updates.github_repo = GitHub.normaliseRepo(req.body.github_repo);
+    if (updates.github_repo && !GitHub.isValidRepo(updates.github_repo)) {
+      return badRequest(res, 'github_repo must look like owner/name');
+    }
+  }
   if ('status' in updates && !PROJECT_STATUSES.includes(updates.status)) return badRequest(res, 'invalid status');
   for (const key of ['start_date', 'target_date'])
     if (key in updates && updates[key] != null && !isValidISODate(updates[key])) return badRequest(res, 'invalid date');
@@ -956,6 +967,7 @@ router.get('/boards/:id/cards', (req, res) => {
         type: 'epic', id: e.id, title: e.title, stage: e.status, sort_order: e.sort_order,
         project_id: e.project_id, project_name: e.project_name, project_color: e.project_color,
         epic_id: e.id, parent_title: null, target_date: e.target_date, child_count: e.story_count,
+        github_issue_number: e.github_issue_number, github_issue_url: e.github_issue_url,
       });
     }
   }
@@ -966,6 +978,7 @@ router.get('/boards/:id/cards', (req, res) => {
         type: 'story', id: s.id, title: s.title, stage: s.status, sort_order: s.sort_order,
         project_id: s.project_id, project_name: s.project_name, project_color: s.project_color,
         epic_id: s.epic_id, parent_title: s.epic_title, due_date: s.due_date, child_count: s.task_count,
+        github_issue_number: s.github_issue_number, github_issue_url: s.github_issue_url,
       });
     }
   }
@@ -977,6 +990,7 @@ router.get('/boards/:id/cards', (req, res) => {
         project_id: t.project_id, project_name: t.project_name, project_color: t.project_color,
         epic_id: t.epic_id, parent_title: t.story_title, due_date: t.due_date,
         priority: t.priority, status: t.status,
+        github_issue_number: t.github_issue_number, github_issue_url: t.github_issue_url,
       });
     }
   }
@@ -1033,6 +1047,7 @@ function publicSettings(scope) {
   const dbKey = (s.anthropic_api_key || '').trim();
   const hasDbKey = !!dbKey;
   const hasEnvKey = !!process.env.ANTHROPIC_API_KEY;
+  const ghToken = (s.github_token || '').trim();
   return {
     workday_minutes: s.workday_minutes,
     workday_start: s.workday_start,
@@ -1042,6 +1057,9 @@ function publicSettings(scope) {
     ai_prompt: s.ai_prompt || '',
     digest_enabled: s.digest_enabled !== '0',
     digest_time: digestTime(s),
+    github_available: GitHub.githubAvailable(scope),
+    github_token_source: ghToken ? 'settings' : GitHub.githubAvailable(scope) ? 'env' : 'none',
+    github_token_last4: ghToken ? ghToken.slice(-4) : null,
   };
 }
 
@@ -1061,6 +1079,14 @@ router.patch('/settings', (req, res) => {
     if (key.length > 300) return badRequest(res, 'API key is too long');
     if (key) setSetting(req.scope, 'anthropic_api_key', key);
     else deleteSetting(req.scope, 'anthropic_api_key');
+  }
+  if ('github_token' in b) {
+    if (typeof b.github_token !== 'string') return badRequest(res, 'github_token must be a string');
+    const token = b.github_token.trim();
+    if (token.length > 300) return badRequest(res, 'GitHub token is too long');
+    if (/\s/.test(token)) return badRequest(res, 'GitHub token cannot contain spaces');
+    if (token) setSetting(req.scope, 'github_token', token);
+    else deleteSetting(req.scope, 'github_token');
   }
   if ('digest_enabled' in b) setSetting(req.scope, 'digest_enabled', b.digest_enabled ? '1' : '0');
   if ('digest_time' in b) {
@@ -1136,6 +1162,173 @@ router.post('/push/test', async (req, res) => {
   });
   res.json({ sent });
 });
+
+// ---------- GitHub ----------
+// Projects link to a repo; epics, stories, tasks and ideas/bugs push to issues
+// in it. Every id is resolved through the scoped accessors before GitHub is
+// contacted, so another workspace's item reads as not found and nothing is
+// sent anywhere.
+
+// Express 4 does not catch a rejected async handler, so GitHub failures are
+// answered here: 502 when GitHub could not be reached or broke, 400 when it
+// refused (bad token, missing repo) because that is something to fix here.
+function github(handler) {
+  return async (req, res, next) => {
+    try {
+      await handler(req, res);
+    } catch (err) {
+      if (!(err instanceof GitHub.GitHubError)) return next(err);
+      const status = err.status === 0 || err.status >= 500 ? 502 : 400;
+      res.status(status).json({ error: GitHub.describeError(err) });
+    }
+  };
+}
+
+function requireGitHub(req, res) {
+  if (GitHub.githubAvailable(req.scope)) return true;
+  badRequest(res, 'No GitHub token configured — add one in Settings');
+  return false;
+}
+
+router.get('/github/status', github(async (req, res) => {
+  if (!GitHub.githubAvailable(req.scope)) return res.json({ available: false });
+  res.json({ available: true, user: await GitHub.getViewer(req.scope) });
+}));
+
+router.get('/github/repos', github(async (req, res) => {
+  if (!requireGitHub(req, res)) return undefined;
+  res.json(await GitHub.listRepos(req.scope));
+}));
+
+// Load a linkable item and everything its issue mentions, scoped. Null when
+// the id is not in this workspace.
+function loadIssueItem(scope, type, id) {
+  if (type === 'epic') {
+    const item = Dev.getEpic(scope, id);
+    return item && { item, project: Projects.getProject(scope, item.project_id), ctx: {} };
+  }
+  if (type === 'story') {
+    const item = Dev.getStory(scope, id);
+    if (!item) return null;
+    const epic = Dev.getEpic(scope, item.epic_id);
+    return { item, project: Projects.getProject(scope, epic.project_id), ctx: { epic } };
+  }
+  if (type === 'task') {
+    const item = Tasks.getTask(scope, id);
+    if (!item) return null;
+    const story = item.story_id ? Dev.getStory(scope, item.story_id) : null;
+    const epic = story ? Dev.getEpic(scope, story.epic_id) : null;
+    const project = item.project_id ? Projects.getProject(scope, item.project_id) : null;
+    return { item, project, ctx: { epic, story } };
+  }
+  const item = Ideas.getIdea(scope, id);
+  return item && { item, project: item.project_id ? Projects.getProject(scope, item.project_id) : null, ctx: {} };
+}
+
+function reloadIssueItem(scope, type, id) {
+  return loadIssueItem(scope, type, id).item;
+}
+
+const ISSUE_ROUTES = { epic: 'epics', story: 'stories', task: 'tasks', idea: 'ideas' };
+
+for (const [type, path] of Object.entries(ISSUE_ROUTES)) {
+  // Push: create the issue in the project's repo, or bring an already-linked
+  // issue up to date (title, body, open/closed). Labels are only set on
+  // creation so ones added on GitHub survive later pushes.
+  router.post(`/${path}/:id/github`, github(async (req, res) => {
+    const loaded = loadIssueItem(req.scope, type, req.params.id);
+    if (!loaded) return notFound(res, type);
+    if (!requireGitHub(req, res)) return undefined;
+    const { item, project, ctx } = loaded;
+
+    if (item.github_issue_number) {
+      const repo = item.github_repo;
+      const { labels, ...content } = GitHub.issueFor(type, item, repo, { project, ...ctx });
+      const issue = await GitHub.updateIssue(req.scope, repo, item.github_issue_number, {
+        ...content, ...GitHub.issueStateFor(type, item),
+      });
+      GitHubLinks.setIssueLink(req.scope, type, item.id, { repo, number: issue.number, url: issue.html_url, state: issue.state });
+      return res.json({ created: false, item: reloadIssueItem(req.scope, type, item.id) });
+    }
+
+    const repo = project?.github_repo;
+    if (!repo) {
+      return badRequest(res, project
+        ? `Link "${project.name}" to a GitHub repository first`
+        : 'Put this in a project that is linked to a GitHub repository first');
+    }
+    let issue = await GitHub.createIssue(req.scope, repo, GitHub.issueFor(type, item, repo, { project, ...ctx }));
+    // Record the link before anything else can fail, so a retry updates this
+    // issue rather than filing a duplicate.
+    GitHubLinks.setIssueLink(req.scope, type, item.id, { repo, number: issue.number, url: issue.html_url, state: issue.state });
+    const wanted = GitHub.issueStateFor(type, item);
+    if (wanted.state === 'closed') {
+      issue = await GitHub.updateIssue(req.scope, repo, issue.number, wanted);
+      GitHubLinks.setIssueState(req.scope, type, item.id, issue.state);
+    }
+    res.status(201).json({ created: true, item: reloadIssueItem(req.scope, type, item.id) });
+  }));
+
+  // Forget the link. The issue itself is left alone on GitHub.
+  router.delete(`/${path}/:id/github`, (req, res) => {
+    const loaded = loadIssueItem(req.scope, type, req.params.id);
+    if (!loaded) return notFound(res, type);
+    GitHubLinks.clearIssueLink(req.scope, type, loaded.item.id);
+    res.json({ item: reloadIssueItem(req.scope, type, loaded.item.id) });
+  });
+}
+
+// Close out an item whose issue was closed on GitHub. Returns whether it changed.
+function closeFromIssue(scope, type, row, issue) {
+  if (type === 'epic' && !['done', 'deployed'].includes(row.status)) {
+    Dev.updateEpic(scope, row, { status: 'done' });
+    return true;
+  }
+  if (type === 'story' && !['done', 'deployed'].includes(row.status)) {
+    Dev.updateStory(scope, row, { status: 'done' });
+    return true;
+  }
+  if (type === 'task' && !['done', 'cancelled'].includes(row.status)) {
+    const status = issue.state_reason === 'not_planned' ? 'cancelled' : 'done';
+    Tasks.updateTask(scope, row.id, {
+      status,
+      ...(status === 'done' ? { dev_stage: row.dev_stage === 'deployed' ? 'deployed' : 'done' } : {}),
+      completed_at: new Date().toISOString(),
+    });
+    const task = Tasks.getTask(scope, row.id);
+    if (status === 'done' && task.recurrence) {
+      Tasks.spawnRecurrence(scope, task, getSettings(scope).workday_minutes);
+    }
+    return true;
+  }
+  if (type === 'idea' && row.status === 'open') {
+    Ideas.updateIdea(scope, row, { status: 'archived' });
+    return true;
+  }
+  return false;
+}
+
+// Pull issue state back for every linked item in a project. One-way on
+// purpose: an issue closed on GitHub completes the item here, but reopening
+// one does not undo local progress — push again to reopen it.
+router.post('/projects/:id/github/sync', github(async (req, res) => {
+  const project = Projects.getProject(req.scope, req.params.id);
+  if (!project) return notFound(res, 'project');
+  if (!requireGitHub(req, res)) return undefined;
+  const result = { checked: 0, completed: 0, failed: [] };
+  for (const { type, row } of GitHubLinks.listLinkedItems(req.scope, project.id)) {
+    try {
+      const issue = await GitHub.getIssue(req.scope, row.github_repo, row.github_issue_number);
+      GitHubLinks.setIssueState(req.scope, type, row.id, issue.state);
+      result.checked += 1;
+      if (issue.state === 'closed' && closeFromIssue(req.scope, type, row, issue)) result.completed += 1;
+    } catch (err) {
+      if (!(err instanceof GitHub.GitHubError)) throw err;
+      result.failed.push({ type, id: row.id, title: row.title, error: GitHub.describeError(err) });
+    }
+  }
+  res.json(result);
+}));
 
 router.get('/ai/status', (req, res) => res.json({ available: aiAvailable(req.scope) }));
 

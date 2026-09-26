@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import GitHubIssue from '../components/GitHubIssue.jsx';
 
 const IDEA_STATUSES = [
   ['open', 'Open'],
@@ -27,7 +28,7 @@ const COPY = {
 };
 
 // Capture list, shared by Ideas (kind="idea") and Bugs (kind="bug").
-export default function Ideas({ kind = 'idea', refreshKey, refresh, projects, onError }) {
+export default function Ideas({ kind = 'idea', refreshKey, refresh, projects, settings, onError }) {
   const copy = COPY[kind] || COPY.idea;
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState('open');
@@ -122,11 +123,13 @@ export default function Ideas({ kind = 'idea', refreshKey, refresh, projects, on
               kind={kind}
               projects={projects}
               devProjects={devProjects}
+              githubReady={!!settings?.github_available}
               expanded={expandedId === item.id}
               onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
               onPatch={(body) => patchItem(item.id, body)}
               onRemove={() => removeItem(item.id)}
               onPromoted={() => { load(); refresh(); }}
+              onChanged={load}
               onError={onError}
             />
           ))}
@@ -136,7 +139,8 @@ export default function Ideas({ kind = 'idea', refreshKey, refresh, projects, on
   );
 }
 
-function IdeaCard({ item, kind, projects, devProjects, expanded, onToggle, onPatch, onRemove, onPromoted, onError }) {
+function IdeaCard({ item, kind, projects, devProjects, githubReady, expanded, onToggle, onPatch, onRemove, onPromoted, onChanged, onError }) {
+  const canPush = githubReady && !!projects.find((p) => p.id === item.project_id)?.github_repo;
   return (
     <div className={`idea-card ${kind} ${item.status}`}>
       <div className="idea-head" onClick={onToggle}>
@@ -146,6 +150,7 @@ function IdeaCard({ item, kind, projects, devProjects, expanded, onToggle, onPat
         </div>
         <div className="idea-meta">
           {item.project_name && <span className="badge project" style={{ '--c': item.project_color }}>{item.project_name}</span>}
+          <GitHubIssue type="idea" item={item} canPush={canPush} compact onChanged={onChanged} onError={onError} />
           <span className={`badge idea-status idea-status-${item.status}`}>{item.status}</span>
         </div>
       </div>

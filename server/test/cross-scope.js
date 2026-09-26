@@ -60,6 +60,15 @@ export function pathCases(victim, attackerWorkspaceId) {
     ['GET', `/boards/${victim.board.id}/cards`],
     ['PATCH', `/board-columns/${victim.board.columns[0].id}`, { name: 'hijacked' }],
     ['DELETE', `/board-columns/${victim.board.columns[0].id}`],
+    ['POST', `/epics/${victim.epic.id}/github`, {}],
+    ['DELETE', `/epics/${victim.epic.id}/github`],
+    ['POST', `/stories/${victim.story.id}/github`, {}],
+    ['DELETE', `/stories/${victim.story.id}/github`],
+    ['POST', `/tasks/${victim.task.id}/github`, {}],
+    ['DELETE', `/tasks/${victim.task.id}/github`],
+    ['POST', `/ideas/${victim.idea.id}/github`, {}],
+    ['DELETE', `/ideas/${victim.idea.id}/github`],
+    ['POST', `/projects/${victim.project.id}/github/sync`, {}],
   ];
 }
 
