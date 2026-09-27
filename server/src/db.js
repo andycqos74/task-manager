@@ -202,6 +202,19 @@ CREATE TABLE IF NOT EXISTS user_settings (
   PRIMARY KEY (user_id, key)
 );
 
+-- External sign-in identities (Google). subject is the provider's stable
+-- user id — never the email, which a person can change on the provider side.
+CREATE TABLE IF NOT EXISTS user_identities (
+  provider TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT,
+  PRIMARY KEY (provider, subject)
+);
+CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id);
+
 -- Instance-wide configuration that is nobody's personal setting.
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,

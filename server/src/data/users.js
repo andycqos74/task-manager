@@ -70,6 +70,28 @@ export function lockedUntil(user) {
   return row.locked ? user.locked_until : null;
 }
 
+// ---------- external identities ----------
+
+export function findIdentity(provider, subject) {
+  return db.prepare('SELECT * FROM user_identities WHERE provider = ? AND subject = ?').get(provider, String(subject)) || null;
+}
+
+export function linkIdentity({ provider, subject, userId, email }) {
+  db.prepare(`INSERT INTO user_identities (provider, subject, user_id, email, last_used_at)
+              VALUES (?,?,?,?,datetime('now'))`)
+    .run(provider, String(subject), userId, email || null);
+}
+
+export function touchIdentity(provider, subject, email) {
+  db.prepare(`UPDATE user_identities SET email = ?, last_used_at = datetime('now') WHERE provider = ? AND subject = ?`)
+    .run(email || null, provider, String(subject));
+}
+
+export function listIdentities(userId) {
+  return db.prepare('SELECT provider, email, created_at, last_used_at FROM user_identities WHERE user_id = ? ORDER BY provider')
+    .all(userId);
+}
+
 // ---------- sessions ----------
 
 export function createSession({ tokenHash, userId, ttlSeconds, userAgent, ip }) {

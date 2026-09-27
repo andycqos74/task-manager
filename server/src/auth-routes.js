@@ -5,8 +5,9 @@ import * as Users from './data/users.js';
 import {
   AUTH_MODE, authenticate, clearSessionCookie, issueSession, publicUser, registerUser,
   requireUser, revokeOtherSessions, revokeSession, hashPassword, verifyPassword,
-  validateEmail, validatePassword,
+  validateEmail, validatePassword, registerExternalUser, secureCookies,
 } from './auth.js';
+import { STATE_COOKIE, GoogleAuthError, beginFlow, finishFlow, googleEnabled, readFlow } from './google.js';
 import { getAppSetting } from './db.js';
 
 export const authRouter = Router();
@@ -33,6 +34,7 @@ authRouter.get('/config', (req, res) => {
     auth_mode: AUTH_MODE,
     setup_required: Users.countUsers() === 0,
     registration_open: registrationOpen(),
+    google_enabled: googleEnabled(),
   });
 });
 
@@ -137,4 +139,69 @@ authRouter.delete('/sessions/:id', requireUser, (req, res) => {
   Users.deleteSession(match.token_hash);
   if (match.token_hash === req.sessionHash) clearSessionCookie(res);
   res.status(204).end();
+});
+
+// ---------- Sign in with Google ----------
+// Both steps are top-level browser navigations (GETs), not API calls: the
+// browser goes to Google and comes back. The flow's state lives in a short,
+// httpOnly cookie scoped to the callback, and is single-use.
+
+const STATE_COOKIE_OPTS = () => ({ httpOnly: true, sameSite: 'lax', secure: secureCookies(), path: '/api/auth/google' });
+
+function backToApp(res, error) {
+  res.clearCookie(STATE_COOKIE, STATE_COOKIE_OPTS());
+  res.redirect(302, error ? `/?auth_error=${encodeURIComponent(error)}` : '/');
+}
+
+authRouter.get('/google/start', (req, res) => {
+  if (!googleEnabled()) return res.status(404).json({ error: 'Google sign-in is not configured' });
+  const { cookieValue, url, maxAge } = beginFlow(req);
+  res.cookie(STATE_COOKIE, cookieValue, { ...STATE_COOKIE_OPTS(), maxAge });
+  res.redirect(302, url);
+});
+
+// Who a verified Google identity signs in as:
+//   1. the account already linked to this Google account;
+//   2. otherwise the account with the same (Google-verified) email, which is
+//      linked from now on;
+//   3. otherwise a new account — the owner on a fresh instance, or anyone
+//      when sign-up is open. With sign-up closed, the owner adds people first.
+function accountForIdentity(identity) {
+  const linked = Users.findIdentity('google', identity.subject);
+  if (linked) {
+    Users.touchIdentity('google', identity.subject, identity.email);
+    return Users.getUser(linked.user_id);
+  }
+  let user = Users.findByEmail(identity.email);
+  if (!user) {
+    if (Users.countUsers() > 0 && !registrationOpen()) {
+      throw new GoogleAuthError(`there is no account for ${identity.email} — ask the owner to create one`);
+    }
+    user = registerExternalUser({ email: identity.email, displayName: identity.name });
+  }
+  Users.linkIdentity({ provider: 'google', subject: identity.subject, userId: user.id, email: identity.email });
+  return user;
+}
+
+authRouter.get('/google/callback', async (req, res, next) => {
+  if (!googleEnabled()) return res.status(404).json({ error: 'Google sign-in is not configured' });
+  if (req.query.error) return backToApp(res, 'Google sign-in was cancelled');
+  const flow = readFlow(req.cookies?.[STATE_COOKIE]);
+  if (!flow) return backToApp(res, 'sign-in expired, please try again');
+  try {
+    const identity = await finishFlow(req, flow, { code: req.query.code, state: req.query.state });
+    const user = accountForIdentity(identity);
+    if (!user || !user.is_active) return backToApp(res, 'this account is disabled');
+    Users.clearLoginFailures(user.id);
+    issueSession(res, user.id, req);
+    backToApp(res, null);
+  } catch (err) {
+    if (err instanceof GoogleAuthError) return backToApp(res, err.message);
+    next(err);
+  }
+});
+
+// Which external sign-ins are linked to the caller's account.
+authRouter.get('/identities', requireUser, (req, res) => {
+  res.json(Users.listIdentities(req.user.id).map((i) => ({ provider: i.provider, email: i.email, last_used_at: i.last_used_at })));
 });

@@ -49,6 +49,9 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [settings, setSettings] = useState({ workday_minutes: 480, ai_available: false });
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  // Sidebar footer: whether GitHub is connected, and as whom. Re-checked when
+  // the token changes; a token GitHub rejects shows as a problem, not "on".
+  const [githubStatus, setGithubStatus] = useState({ state: '', label: 'off', title: 'No GitHub token — add one in Settings' });
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState(null);
   const [isNarrow, setIsNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
@@ -171,6 +174,26 @@ export default function App() {
       reportError(err);
     }
   }, [refresh, reportError]);
+
+  useEffect(() => {
+    if (!settings.github_available) {
+      setGithubStatus({ state: '', label: 'off', title: 'No GitHub token — add one in Settings' });
+      return undefined;
+    }
+    let cancelled = false;
+    setGithubStatus({ state: '', label: '…', title: 'Checking GitHub connection' });
+    api.get('/github/status')
+      .then((st) => {
+        if (cancelled) return;
+        setGithubStatus(st.user
+          ? { state: 'on', label: `@${st.user.login}`, title: `Connected to GitHub as @${st.user.login}` }
+          : { state: '', label: 'off', title: 'No GitHub token — add one in Settings' });
+      })
+      .catch((err) => {
+        if (!cancelled) setGithubStatus({ state: 'error', label: 'error', title: err.message });
+      });
+    return () => { cancelled = true; };
+  }, [settings.github_available, settings.github_token_last4]);
 
   const viewProps = {
     refreshKey,
@@ -317,6 +340,13 @@ export default function App() {
             </button>
             <div className={`ai-badge ${settings.ai_available ? 'on' : ''}`}>
               AI {settings.ai_available ? 'enabled' : 'off'}
+            </div>
+            <div
+              className={`ai-badge github-status ${githubStatus.state}`}
+              title={githubStatus.title}
+              onClick={() => goTo({ name: 'settings' })}
+            >
+              GitHub {githubStatus.label}
             </div>
           </div>
         </aside>

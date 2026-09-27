@@ -237,7 +237,9 @@ export default function Notepad({ projects, context, refresh, onError }) {
   async function newNote() {
     await flush();
     try {
-      const n = await api.post('/notes', { title: '', blocks: [] });
+      // Named for the day it was started, e.g. "Sun 27 Sep 2026" — rename any time.
+      const title = new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      const n = await api.post('/notes', { title, blocks: [] });
       setNote(n); dirtyRef.current = false; activeRef.current = null; reloadOptions();
     } catch (err) {
       onError(err);
