@@ -265,6 +265,20 @@ for (const table of ['projects', 'tasks', 'notes', 'ideas', 'boards']) {
 ensureColumn('workspaces', 'user_id', 'user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
 ensureColumn('notes', 'user_id', 'user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
 
+// GitHub integration. A project names the repository its work lives in
+// ("owner/name"); epics, stories, tasks and ideas/bugs each remember the issue
+// they were pushed to. The issue's repo is stored on the item rather than read
+// from the project, so relinking a project to a new repo never orphans issues
+// already filed in the old one.
+ensureColumn('projects', 'github_repo', 'github_repo TEXT');
+for (const table of ['epics', 'user_stories', 'tasks', 'ideas']) {
+  ensureColumn(table, 'github_repo', 'github_repo TEXT');
+  ensureColumn(table, 'github_issue_number', 'github_issue_number INTEGER');
+  ensureColumn(table, 'github_issue_url', 'github_issue_url TEXT');
+  ensureColumn(table, 'github_issue_state', 'github_issue_state TEXT');
+  ensureColumn(table, 'github_synced_at', 'github_synced_at TEXT');
+}
+
 // Indexes on retrofitted columns created after the column is guaranteed to exist.
 db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_story ON tasks(story_id);');
 db.exec('CREATE INDEX IF NOT EXISTS idx_ideas_kind ON ideas(kind);');

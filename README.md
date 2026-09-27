@@ -163,6 +163,32 @@ use the install icon in the address bar.
 Both endpoints degrade to the rule-based engine in `server/src/scoring.js` when no key is
 configured or a call fails.
 
+## GitHub integration
+
+Development work can be pushed to GitHub as issues:
+
+1. In **Settings → GitHub**, save a personal access token — a fine-grained token with
+   *Issues: read and write* on the repositories you use, or a classic token with `repo`.
+   Like the Claude key it is per user, write-only, and only its last four characters are
+   ever shown again.
+2. On a project's page, set **GitHub repo** (`owner/name`, or paste the repo URL).
+3. Epics and stories (Development tab), tasks (task panel) and ideas/bugs (their lists)
+   now show **Push to GitHub**. Pushing files an issue labelled `epic`, `user story`,
+   `task`, `enhancement` or `bug`, with the description, the parent epic/story (as `#12`
+   references once those are pushed), dates, priority and a task's checklist. The item then
+   shows its issue number, linking to it.
+4. Push a linked item again (↻ / *update issue*) to bring the issue's title, body and
+   open/closed state up to date. Labels are only set on creation, so ones you add on GitHub
+   are kept.
+5. **Sync from GitHub** on the project reads issue state back: an issue closed on GitHub
+   (for example by a PR saying `Fixes #12`) marks its item done here — a task closed as
+   *not planned* is cancelled, a bug is archived. Sync never reopens anything locally.
+
+The app is the source of truth for an item's text; GitHub is never written to except when
+you push. `GITHUB_TOKEN` in the environment is used as a fallback in single-user mode (in
+multi mode only with `GITHUB_ENV_TOKEN_SHARED=1`, since it would let every account write to
+the operator's repositories).
+
 ## Architecture
 
 ```
@@ -212,6 +238,10 @@ Run server unit tests with `npm test`.
   (attach via `{task_id}` or `{project_id}`; a note has at most one owner)
 - `GET /api/tags`, `GET/PATCH /api/settings`
 - `GET /api/ai/status`, `POST /api/ai/plan-day`, `POST /api/ai/prioritise`
+- `GET /api/github/status`, `GET /api/github/repos`
+- `POST/DELETE /api/{epics,stories,tasks,ideas}/:id/github` — push to (create or update)
+  / unlink the item's GitHub issue
+- `POST /api/projects/:id/github/sync` — pull issue state back for a project's linked items
 
 The schema is single-user but auth-ready: adding a `user_id` column to `projects`/`tasks`
 and a session layer is the intended path to multi-user.

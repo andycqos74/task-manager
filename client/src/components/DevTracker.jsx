@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { api, DEV_STATUSES } from '../api.js';
 import QuickAdd from './QuickAdd.jsx';
 import TaskList from './TaskList.jsx';
+import GitHubIssue from './GitHubIssue.jsx';
 
 // The Development tab body for a project: an Epic → Story → Task accordion,
 // fed by GET /projects/:id/dev. Epic/story fields edit inline; tasks open the
 // shared TaskDetail panel via onSelectTask.
-export default function DevTracker({ projectId, refreshKey, refresh, onSelectTask, onError }) {
+export default function DevTracker({ projectId, refreshKey, refresh, onSelectTask, onError, canPush = false }) {
   const [tree, setTree] = useState(null);
   const [newEpic, setNewEpic] = useState('');
   const [openEpics, setOpenEpics] = useState({});
@@ -68,6 +69,7 @@ export default function DevTracker({ projectId, refreshKey, refresh, onSelectTas
               onBlur={(e) => e.target.value.trim() && e.target.value !== epic.title && patchEpic(epic.id, { title: e.target.value })}
             />
             <EpicCounts epic={epic} />
+            <GitHubIssue type="epic" item={epic} canPush={canPush} compact onChanged={bump} onError={onError} />
             <select className={`dev-status dev-status-${epic.status}`} value={epic.status} onChange={(e) => patchEpic(epic.id, { status: e.target.value })}>
               {DEV_STATUSES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
@@ -91,6 +93,7 @@ export default function DevTracker({ projectId, refreshKey, refresh, onSelectTas
                       onBlur={(e) => e.target.value.trim() && e.target.value !== story.title && patchStory(story.id, { title: e.target.value })}
                     />
                     <StoryCounts story={story} />
+                    <GitHubIssue type="story" item={story} canPush={canPush} compact onChanged={bump} onError={onError} />
                     <select className={`dev-status dev-status-${story.status}`} value={story.status} onChange={(e) => patchStory(story.id, { status: e.target.value })}>
                       {DEV_STATUSES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                     </select>

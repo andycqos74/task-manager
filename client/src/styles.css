@@ -885,3 +885,11 @@ button.danger:hover { background: var(--danger-light); }
   font-family: inherit; font-size: 13px; color: var(--accent-dark);
 }
 .account-link.danger-link { color: var(--danger, oklch(55% 0.19 25)); }
+
+/* ---------- GitHub issue links ---------- */
+.gh-issue { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.gh-mark { vertical-align: -1px; }
+.badge.gh-badge { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: var(--success); background: var(--success-light); }
+.badge.gh-badge.closed { color: var(--ai); background: var(--ai-light); }
+.badge.gh-badge:hover { text-decoration: underline; }
+.gh-push { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }

@@ -51,7 +51,7 @@ export function createProject(scope, f) {
   return getProject(scope, id);
 }
 
-const UPDATABLE = new Set(['name', 'description', 'status', 'color', 'start_date', 'target_date', 'track_dev']);
+const UPDATABLE = new Set(['name', 'description', 'status', 'color', 'start_date', 'target_date', 'track_dev', 'github_repo']);
 
 export function updateProject(scope, project, updates) {
   const keys = Object.keys(updates).filter((k) => UPDATABLE.has(k));

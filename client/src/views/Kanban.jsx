@@ -271,6 +271,12 @@ function KanbanCard({ card, dragging, onDragStart, onDragEnd, onOpen }) {
         {card.due_date && <span className="badge">due {formatDate(card.due_date)}</span>}
         {card.target_date && <span className="badge">target {formatDate(card.target_date)}</span>}
         {card.child_count > 0 && <span className="badge">{card.child_count} child{card.child_count > 1 ? 'ren' : ''}</span>}
+        {card.github_issue_number && (
+          <a className="badge gh-badge" href={card.github_issue_url} target="_blank" rel="noreferrer"
+            onClick={(e) => e.stopPropagation()} title="Open the GitHub issue">
+            #{card.github_issue_number}
+          </a>
+        )}
       </div>
     </div>
   );

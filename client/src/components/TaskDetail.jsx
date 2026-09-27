@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api, parseEstimate, formatEstimate, todayISO } from '../api.js';
 import { SunIcon } from '../icons.jsx';
 import WorkspaceMove from './WorkspaceMove.jsx';
+import GitHubIssue from './GitHubIssue.jsx';
 
 // Full task editor, shown as a right-hand panel. Every change saves
 // immediately (PATCH), so quick-captured tasks can be enriched over time.
@@ -250,6 +251,24 @@ export default function TaskDetail({ taskId, projects, settings, workspaces, act
           onMove={moveToWorkspace}
           hint="Moving a task on its own clears its project and story"
         />
+
+        {(task.github_issue_number || settings?.github_available) && (
+          <>
+            <label>GitHub</label>
+            <div>
+              <GitHubIssue
+                type="task"
+                item={task}
+                canPush={!!projects.find((p) => p.id === task.project_id)?.github_repo}
+                onChanged={(updated) => { setTask(updated); onChanged?.(); }}
+                onError={onError}
+              />
+              {!task.github_issue_number && !projects.find((p) => p.id === task.project_id)?.github_repo && (
+                <span className="hint">File this task under a project linked to a GitHub repo to push it as an issue.</span>
+              )}
+            </div>
+          </>
+        )}
 
         <label>Tags</label>
         <input
