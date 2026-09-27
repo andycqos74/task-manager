@@ -22,6 +22,7 @@ import * as Push from './data/push.js';
 import * as GitHubLinks from './data/github.js';
 import { vapidKeys, sendToUser, digestTime } from './push.js';
 import * as GitHub from './github.js';
+import { listNotifications, markRead } from './notifications.js';
 
 export const router = Router();
 
@@ -1329,6 +1330,21 @@ router.post('/projects/:id/github/sync', github(async (req, res) => {
   }
   res.json(result);
 }));
+
+// ---------- in-app notifications (the header bell) ----------
+// Across all of the caller's workspaces, like the push digest.
+
+router.get('/notifications', (req, res) => {
+  res.json(listNotifications(req.scope));
+});
+
+router.post('/notifications/read', (req, res) => {
+  const keys = (req.body || {}).keys;
+  if (keys != null && (!Array.isArray(keys) || keys.some((k) => typeof k !== 'string'))) {
+    return badRequest(res, 'keys must be an array of strings');
+  }
+  res.json(markRead(req.scope, keys ?? null));
+});
 
 router.get('/ai/status', (req, res) => res.json({ available: aiAvailable(req.scope) }));
 

@@ -156,7 +156,7 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   .brand-mark svg { width: 34px; height: 24px; }
   .brand-wordmark { display: none; }
   .header-search-input { width: 120px; }
-  .header-avatar, .header-icon-btn[title='Notifications'] { display: none; }
+  .header-avatar { display: none; }
 }
 
 /* ---------- sidebar ---------- */
@@ -918,4 +918,51 @@ button.danger:hover { background: var(--danger-light); }
      its size: any bigger and it covers the page heading. */
   .sidebar-toggle { padding: 11px; margin: -11px; }
   .sidebar-toggle svg { width: 22px; height: 22px; }
+}
+
+/* ---------- notifications (header bell) ---------- */
+.notif-menu { position: relative; }
+.notif-bell { cursor: pointer; }
+.notif-popover {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; width: 340px;
+  max-height: min(70vh, 520px); display: flex; flex-direction: column; gap: 8px;
+  background: #fff; border: 1px solid var(--card-border); border-radius: 12px;
+  padding: 12px; box-shadow: 0 16px 34px -18px rgba(20, 20, 43, 0.4); color: var(--text-primary);
+}
+.notif-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.notif-head strong { font-size: 14px; }
+.notif-empty { padding: 18px 8px; text-align: center; color: var(--text-muted); font-size: 13px; }
+.notif-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.notif-row { display: flex; align-items: stretch; gap: 2px; }
+.notif-item {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  padding: 8px 10px; border: none; border-radius: 9px; background: transparent; text-align: left;
+  cursor: pointer; font-family: inherit; color: inherit;
+}
+.notif-item:hover { background: var(--bg); }
+.notif-item.fresh { background: var(--accent-light); }
+.notif-kind { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.notif-kind.overdue { color: var(--danger); }
+.notif-kind.due_today { color: var(--warning-dark); }
+.notif-kind.starts_today { color: var(--accent-dark); }
+.notif-title { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.notif-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-secondary); }
+.notif-ws { font-style: italic; }
+.notif-done {
+  flex-shrink: 0; width: 36px; border: none; border-radius: 9px; background: transparent;
+  color: var(--text-muted); font-size: 15px; cursor: pointer;
+}
+.notif-done:hover { background: var(--success-light); color: var(--success); }
+.notif-more { padding: 0 4px; }
+.notif-settings { padding: 4px; font-size: 12.5px; }
+
+@media (max-width: 780px) {
+  /* Full-width sheet under the header rather than a popover off the edge. */
+  .notif-popover { position: fixed; top: calc(var(--header-h) + 6px); left: 8px; right: 8px; width: auto; }
+  /* The header is the stacking context for its dropdowns; lift it above the
+     off-canvas sidebar (70) and its floating reopen button (66), which sit
+     below the header on phones, so nothing covers an open dropdown. */
+  .app-header { z-index: 75; }
+  .notif-item { min-height: 44px; }
+  .notif-done { width: 44px; }
 }
