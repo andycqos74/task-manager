@@ -29,6 +29,10 @@ services:
       # Whether anyone who can reach the URL may create an account.
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - SESSION_TTL_DAYS=${SESSION_TTL_DAYS:-30}
+      # Optional "Sign in with Google" (multi mode) — see README.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - PUBLIC_URL=${PUBLIC_URL:-}
       # AI planning is optional. Leave unset to use the built-in rule engine.
       # In multi mode each account can hold its own key in Settings; this one
       # is an instance-wide fallback everyone would spend, so set

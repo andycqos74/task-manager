@@ -87,6 +87,21 @@ it issues a session cookie. See [DEPLOY.md](DEPLOY.md) for the setup, and
 [MULTI_USER_PLAN.md](MULTI_USER_PLAN.md) for the design and what is still to
 come (MFA, encryption of stored secrets, password reset).
 
+### Sign in with Google
+
+In multi mode people can also sign up and sign in with a Google account:
+
+1. In Google Cloud Console → *APIs & Services → Credentials*, create an **OAuth client ID**
+   of type *Web application*, with the authorised redirect URI
+   `https://<your-host>/api/auth/google/callback`.
+2. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `PUBLIC_URL=https://<your-host>`.
+
+The sign-in screen then shows **Sign in with Google**. A Google account signs in as the
+account it is linked to; the first time, it is linked to the existing account with the same
+(Google-verified) email, or — on a fresh instance, or when `ALLOW_REGISTRATION=true` — gets
+a new account. With sign-up closed, a stranger's Google account is turned away. Accounts
+created through Google have no password until their owner sets one.
+
 ## Concepts
 
 - **Workspaces** — the top level: each keeps its own projects, tasks, notes, ideas, bugs,

@@ -212,6 +212,21 @@ export async function registerUser({ email, password, displayName }) {
   return user;
 }
 
+// An account created by signing in with Google has no password: it cannot be
+// logged into with one until its owner sets one from the account menu.
+export function registerExternalUser({ email, displayName }) {
+  const isFirst = Users.countUsers() === 0;
+  const user = Users.createUser({
+    email,
+    passwordHash: UNUSABLE_PASSWORD,
+    displayName: displayName || '',
+    role: isFirst ? 'owner' : 'user',
+  });
+  if (isFirst) adoptOrphanData(user.id);
+  else seedNewUser(user.id);
+  return user;
+}
+
 // Same answer and roughly the same work for an unknown email, a wrong password
 // and a locked account, so the response does not say which.
 export async function authenticate(email, password) {

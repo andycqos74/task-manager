@@ -893,3 +893,29 @@ button.danger:hover { background: var(--danger-light); }
 .badge.gh-badge.closed { color: var(--ai); background: var(--ai-light); }
 .badge.gh-badge:hover { text-decoration: underline; }
 .gh-push { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+/* ---------- sidebar footer: GitHub connection ---------- */
+.ai-badge.github-status { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 0; }
+.ai-badge.github-status.error { color: var(--danger); }
+.sidebar.collapsed .ai-badge.github-status { display: none; }
+
+/* ---------- sign in with Google ---------- */
+.signin-or { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; color: var(--text-muted); font-size: 12px; }
+.signin-or::before, .signin-or::after { content: ''; flex: 1; height: 1px; background: var(--border, oklch(90% 0.01 240)); }
+.signin-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border, oklch(88% 0.01 240));
+  background: #fff; color: oklch(28% 0.02 240); font-weight: 650; font-size: 14px; text-decoration: none;
+}
+.signin-google:hover { background: oklch(97% 0.005 240); }
+
+/* ---------- bigger collapse controls on phones ---------- */
+@media (max-width: 780px) {
+  /* Notepad minimise / restore: a full 44px touch target with a visible caret. */
+  .notepad-toggle { min-height: 44px; min-width: 44px; padding: 10px 14px; background-color: oklch(1 0 0 / 0.06); }
+  .notepad-caret { font-size: 16px; opacity: 0.85; }
+  /* Sidebar close (inside the open menu). The floating reopen button keeps
+     its size: any bigger and it covers the page heading. */
+  .sidebar-toggle { padding: 11px; margin: -11px; }
+  .sidebar-toggle svg { width: 22px; height: 22px; }
+}
