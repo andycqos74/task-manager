@@ -16,8 +16,9 @@ import TaskDetail from './components/TaskDetail.jsx';
 import Notepad from './components/Notepad.jsx';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher.jsx';
 import AccountMenu from './components/AccountMenu.jsx';
+import NotificationsMenu from './components/NotificationsMenu.jsx';
 import SignIn from './views/SignIn.jsx';
-import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, BellIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon, ColumnsIcon } from './icons.jsx';
+import { SunIcon, CalendarIcon, ListIcon, BarChartIcon, GearIcon, MenuIcon, InboxIcon, SearchIcon, LayersIcon, LightbulbIcon, MapIcon, BugIcon, ColumnsIcon } from './icons.jsx';
 import { BrandMark, SolwaiMark, SolwaiWordmark, Wordmark } from './components/Brand.jsx';
 
 const NAV = [
@@ -252,10 +253,17 @@ export default function App() {
           <button className="header-icon-btn" title="Search" onClick={() => setSearchOpen((o) => !o)}>
             <SearchIcon width={18} height={18} />
           </button>
-          <button className="header-icon-btn" title="Notifications">
-            <BellIcon width={18} height={18} />
-            <span className="header-dot" />
-          </button>
+          <NotificationsMenu
+            refreshKey={refreshKey}
+            activeWorkspaceId={activeWorkspaceId}
+            onOpenTask={async (item) => {
+              // A task in another workspace can only be opened from inside it.
+              if (item.workspace_id !== activeWorkspaceId) await switchWorkspace(item.workspace_id);
+              setSelectedTaskId(item.task_id);
+            }}
+            onSettings={() => goTo({ name: 'settings' })}
+            onError={reportError}
+          />
           <AccountMenu
             user={user}
             beforeSignOut={async () => {

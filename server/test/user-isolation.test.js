@@ -221,3 +221,21 @@ test('a state-changing request must declare JSON, which is what blocks cross-sit
   h.useCookie(carol.cookie);
   assert.equal((await h.raw('GET', `/tasks/${task.id}`)).status, 200);
 });
+
+test('the notification feed shows only the caller\'s own tasks', async () => {
+  // Own accounts: earlier tests sign people out and change passwords.
+  h.signOutLocally();
+  const dana = await h.createAccount('dana@example.com', 'dana-long-passphrase-one');
+  await h.post('/tasks', { title: 'Dana due', due_date: '2000-01-01' });
+  h.signOutLocally();
+  await h.createAccount('eve@example.com', 'eve-long-passphrase-two');
+  await h.post('/tasks', { title: 'Eve due', due_date: '2000-01-01' });
+
+  const eves = (await h.get('/notifications')).items.map((i) => i.title);
+  assert.deepEqual(eves, ['Eve due'], 'Eve sees someone else\'s task');
+  // Marking read is per person too.
+  await h.post('/notifications/read', {});
+  h.useCookie(dana.cookie);
+  const danas = await h.get('/notifications');
+  assert.deepEqual(danas.items.map((i) => [i.title, i.read]), [['Dana due', false]]);
+});

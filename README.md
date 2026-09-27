@@ -253,6 +253,9 @@ Run server unit tests with `npm test`.
   (attach via `{task_id}` or `{project_id}`; a note has at most one owner)
 - `GET /api/tags`, `GET/PATCH /api/settings`
 - `GET /api/ai/status`, `POST /api/ai/plan-day`, `POST /api/ai/prioritise`
+- `GET /api/notifications` — the header bell's feed: overdue, due-today and starting-today
+  tasks across all workspaces, each flagged read/unread; `POST /api/notifications/read`
+  `{keys?}` marks them seen (all current ones when `keys` is omitted)
 - `GET /api/github/status`, `GET /api/github/repos`
 - `POST/DELETE /api/{epics,stories,tasks,ideas}/:id/github` — push to (create or update)
   / unlink the item's GitHub issue
