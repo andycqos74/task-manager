@@ -468,10 +468,18 @@ router.put('/tasks/:id/dependencies', (req, res) => {
 // ---------- views ----------
 
 // My Day: tasks flagged for today plus tasks whose do date has arrived.
+// ?scope=all combines every one of the caller's workspaces into one day — one
+// person, one workday — with each task labelled with the workspace it is in.
 router.get('/views/my-day', (req, res) => {
   const today = todayISO();
   const settings = getSettings(req.scope);
-  const open = Tasks.listOpenTasks(req.scope);
+  const combined = req.query.scope === 'all';
+  const scopes = combined
+    ? Workspaces.listWorkspaces(req.scope).map((ws) => ({ ws, scope: { ...req.scope, workspaceId: ws.id } }))
+    : [{ ws: null, scope: req.scope }];
+
+  const open = scopes.flatMap(({ ws, scope }) => Tasks.listOpenTasks(scope)
+    .map((t) => (ws ? { ...t, workspace_name: ws.name } : t)));
   const tasks = open.filter((t) => t.in_my_day);
   const ranked = rankTasks(tasks, today).map((r) => ({ ...r.task, score_reasons: r.reasons }));
 
@@ -480,8 +488,9 @@ router.get('/views/my-day', (req, res) => {
 
   res.json({
     date: today,
+    combined,
     tasks: ranked,
-    done_today: Tasks.countDoneOn(req.scope, today),
+    done_today: scopes.reduce((n, { scope }) => n + Tasks.countDoneOn(scope, today), 0),
     warnings: {
       overdue_count: overdue.length,
       total_estimated_minutes: totalEstimated,
@@ -744,6 +753,65 @@ router.delete('/stories/:id', (req, res) => {
   if (!story) return notFound(res, 'story');
   Dev.deleteStory(req.scope, story);
   res.json({ ok: true });
+});
+
+// ---------- Development tab ordering ----------
+// Drag and drop in the Development tab sends the complete new order of one
+// container. Every id must already belong to the project, and none of the
+// container's current members may be left out — a dropped id would otherwise
+// keep a stale position and land somewhere unexpected.
+
+// Returns the de-duplicated integer ids, or null when the body is unusable.
+function orderIds(b) {
+  if (!Array.isArray(b?.ids)) return null;
+  const ids = b.ids.map(Number);
+  if (!ids.every(Number.isInteger) || new Set(ids).size !== ids.length) return null;
+  return ids;
+}
+
+router.put('/projects/:id/epics/order', (req, res) => {
+  const project = Projects.getProject(req.scope, req.params.id);
+  if (!project) return notFound(res, 'project');
+  const ids = orderIds(req.body);
+  if (!ids) return badRequest(res, 'ids must be an array of distinct epic ids');
+  const current = new Set(Dev.listProjectEpics(req.scope, project.id).map((e) => e.id));
+  if (ids.length !== current.size || !ids.every((id) => current.has(id))) {
+    return badRequest(res, "ids must list each of the project's epics exactly once");
+  }
+  res.json(Dev.setEpicOrder(req.scope, project, ids));
+});
+
+// Stories may arrive from another epic of the same project; they move here.
+router.put('/epics/:id/stories/order', (req, res) => {
+  const epic = Dev.getEpic(req.scope, req.params.id);
+  if (!epic) return notFound(res, 'epic');
+  const ids = orderIds(req.body);
+  if (!ids) return badRequest(res, 'ids must be an array of distinct story ids');
+  const inProject = Dev.projectStoryIds(req.scope, epic.project_id);
+  if (!ids.every((id) => inProject.has(id))) return badRequest(res, 'story not found in this project');
+  const listed = new Set(ids);
+  if (Dev.listStories(req.scope, { epicId: epic.id }).some((s) => !listed.has(s.id))) {
+    return badRequest(res, "ids must include each of the epic's current stories");
+  }
+  res.json(Dev.setStoryOrder(req.scope, epic, ids));
+});
+
+// Tasks may arrive from another story of the same project; they move here.
+router.put('/stories/:id/tasks/order', (req, res) => {
+  const story = Dev.getStory(req.scope, req.params.id);
+  if (!story) return notFound(res, 'story');
+  const owner = Dev.storyOwner(req.scope, story.id);
+  const ids = orderIds(req.body);
+  if (!ids) return badRequest(res, 'ids must be an array of distinct task ids');
+  const devTasks = Tasks.listProjectStoryTasks(req.scope, owner.project_id);
+  const inProject = new Set(devTasks.map((t) => t.id));
+  if (!ids.every((id) => inProject.has(id))) return badRequest(res, "task not found in this project's stories");
+  const listed = new Set(ids);
+  if (devTasks.some((t) => t.story_id === story.id && !listed.has(t.id))) {
+    return badRequest(res, "ids must include each of the story's current tasks");
+  }
+  Tasks.setStoryTaskOrder(req.scope, story.id, ids);
+  res.json(Tasks.listProjectStoryTasks(req.scope, owner.project_id).filter((t) => t.story_id === story.id));
 });
 
 // Full dev tree for a project's Development tab.

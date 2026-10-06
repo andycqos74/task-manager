@@ -53,7 +53,8 @@ export default function NotificationsMenu({ refreshKey, activeWorkspaceId, onOpe
   async function complete(item, e) {
     e.stopPropagation();
     try {
-      await api.patch(`/tasks/${item.task_id}`, { status: 'done' });
+      // The task may be in another workspace, so name the one it lives in.
+      await api.in(item.workspace_id).patch(`/tasks/${item.task_id}`, { status: 'done' });
       await load();
     } catch (err) {
       onError(err);

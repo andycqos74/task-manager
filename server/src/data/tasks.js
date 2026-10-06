@@ -135,9 +135,18 @@ export function listGanttTasks(scope, projectId) {
 export function listProjectStoryTasks(scope, projectId) {
   const rows = db
     .prepare(`${TASK_SELECT} WHERE t.workspace_id = ? AND t.story_id IN
-        (SELECT s.id FROM user_stories s JOIN epics e ON e.id = s.epic_id WHERE e.project_id = ?) ORDER BY t.id`)
+        (SELECT s.id FROM user_stories s JOIN epics e ON e.id = s.epic_id WHERE e.project_id = ?) ORDER BY t.sort_order, t.id`)
     .all(scope.workspaceId, projectId);
   return hydrateTasks(rows);
+}
+
+// Place tasks in a story in the given order. The route has checked that each
+// one already hangs off a story of the same project, so moving between stories
+// keeps its project and its "development" tag.
+export function setStoryTaskOrder(scope, storyId, ids) {
+  const stmt = db.prepare(`UPDATE tasks SET story_id = ?, sort_order = ?, updated_at = datetime('now')
+                           WHERE id = ? AND workspace_id = ?`);
+  db.transaction(() => ids.forEach((id, i) => stmt.run(storyId, i, id, scope.workspaceId)))();
 }
 
 export function listBoardTasks(scope, { projectId = null, q = null } = {}) {

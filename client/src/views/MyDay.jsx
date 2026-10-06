@@ -4,14 +4,38 @@ import QuickAdd from '../components/QuickAdd.jsx';
 import TaskList from '../components/TaskList.jsx';
 import { SparkleIcon } from '../icons.jsx';
 
-export default function MyDay({ refreshKey, refresh, settings, onSelectTask, onError }) {
+const COMBINED_KEY = 'myday-combined';
+
+function loadCombined() {
+  try { return localStorage.getItem(COMBINED_KEY) === '1'; } catch { return false; }
+}
+
+export default function MyDay({ refreshKey, refresh, settings, workspaces = [], activeWorkspaceId, onSelectTask, onOpenTask, onError }) {
   const [data, setData] = useState(null);
   const [plan, setPlan] = useState(null);
   const [planning, setPlanning] = useState(false);
+  // Combined: one day across every workspace. Remembered per device.
+  const [combinedPref, setCombinedPref] = useState(loadCombined);
+  const canCombine = workspaces.length > 1;
+  const combined = canCombine && combinedPref;
 
   useEffect(() => {
-    api.get('/views/my-day').then(setData).catch(onError);
-  }, [refreshKey]);
+    api.get(combined ? '/views/my-day?scope=all' : '/views/my-day').then(setData).catch(onError);
+  }, [refreshKey, combined]);
+
+  function setCombined(on) {
+    setCombinedPref(on);
+    try { localStorage.setItem(COMBINED_KEY, on ? '1' : '0'); } catch { /* storage unavailable */ }
+  }
+
+  // A task in another workspace opens from inside it.
+  function selectTask(id) {
+    const task = data?.tasks.find((t) => t.id === id);
+    if (task && task.workspace_id !== activeWorkspaceId) onOpenTask(id, task.workspace_id);
+    else onSelectTask(id);
+  }
+
+  const activeName = workspaces.find((w) => w.id === activeWorkspaceId)?.name;
 
   async function planDay() {
     setPlanning(true);
@@ -63,6 +87,17 @@ export default function MyDay({ refreshKey, refresh, settings, onSelectTask, onE
         </button>
       </header>
 
+      {canCombine && (
+        <div className="tabs myday-scope" role="tablist" aria-label="Which workspaces">
+          <button role="tab" aria-selected={!combined} className={`tab ${!combined ? 'active' : ''}`} onClick={() => setCombined(false)}>
+            {activeName || 'This workspace'}
+          </button>
+          <button role="tab" aria-selected={combined} className={`tab ${combined ? 'active' : ''}`} onClick={() => setCombined(true)}>
+            All workspaces
+          </button>
+        </div>
+      )}
+
       {(warnings.overdue_count > 0 || warnings.overloaded) && (
         <div className="banner warn">
           {warnings.overdue_count > 0 && <span>⚠ {warnings.overdue_count} overdue task{warnings.overdue_count > 1 ? 's' : ''}. </span>}
@@ -102,11 +137,16 @@ export default function MyDay({ refreshKey, refresh, settings, onSelectTask, onE
         </div>
       )}
 
-      <QuickAdd defaults={{ my_day: true }} onCreated={refresh} onError={onError} placeholder="Add a task to My Day" />
+      <QuickAdd
+        defaults={{ my_day: true }}
+        onCreated={refresh}
+        onError={onError}
+        placeholder={combined && activeName ? `Add a task to My Day in ${activeName}` : 'Add a task to My Day'}
+      />
       <TaskList
         tasks={data.tasks}
         empty="Nothing in My Day yet. Add tasks with the ☀ button, or let AI plan your day."
-        onSelect={onSelectTask}
+        onSelect={selectTask}
         onChanged={refresh}
         onError={onError}
       />

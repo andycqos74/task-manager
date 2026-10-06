@@ -8,11 +8,14 @@ export function TaskRow({ task, onSelect, onChanged, onError, showProject = true
   const done = task.status === 'done';
   const overdue = !done && task.due_date && task.due_date < todayISO();
   const inMyDay = task.my_day_date === todayISO();
+  // Only the combined My Day labels tasks with their workspace; those may live
+  // outside the active one, so their quick actions name it explicitly.
+  const client = task.workspace_name != null ? api.in(task.workspace_id) : api;
 
   async function toggleDone(e) {
     e.stopPropagation();
     try {
-      await api.patch(`/tasks/${task.id}`, { status: done ? 'todo' : 'done' });
+      await client.patch(`/tasks/${task.id}`, { status: done ? 'todo' : 'done' });
       onChanged?.();
     } catch (err) {
       onError?.(err);
@@ -22,7 +25,7 @@ export function TaskRow({ task, onSelect, onChanged, onError, showProject = true
   async function toggleMyDay(e) {
     e.stopPropagation();
     try {
-      await api.post(`/tasks/${task.id}/my-day`, { on: !inMyDay });
+      await client.post(`/tasks/${task.id}/my-day`, { on: !inMyDay });
       onChanged?.();
     } catch (err) {
       onError?.(err);
@@ -42,6 +45,9 @@ export function TaskRow({ task, onSelect, onChanged, onError, showProject = true
           {task.title}
         </div>
         <div className="task-meta">
+          {task.workspace_name != null && (
+            <span className="badge workspace" title="Workspace">{task.workspace_name}</span>
+          )}
           {showProject && task.project_name && (
             <span className="badge project" style={{ '--c': task.project_color }}>{task.project_name}</span>
           )}
