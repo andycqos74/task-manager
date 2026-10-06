@@ -53,6 +53,24 @@ test('list endpoints return only the signed-in user\'s rows', async () => {
   await assertListsAreClean(h, b, a);
 });
 
+test('the workspace header cannot name another user\'s workspace', async () => {
+  h.useCookie(bob.cookie);
+  await h.post(`/tasks/${b.task.id}/my-day`, { on: true });
+  h.useCookie(alice.cookie);
+  const res = await fetch(`${h.baseUrl}/tasks/${b.task.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', cookie: h.currentCookie(), 'X-Workspace-Id': String(b.ws.id) },
+    body: JSON.stringify({ title: 'hijacked' }),
+  });
+  assert.equal(res.status, 404);
+  // And the combined My Day only ever spans the caller's own workspaces.
+  const all = await h.get('/views/my-day?scope=all');
+  assert.ok(all.tasks.every((t) => t.workspace_id !== b.ws.id));
+  h.useCookie(bob.cookie);
+  assert.ok((await h.get('/views/my-day?scope=all')).tasks.some((t) => t.id === b.task.id));
+  await h.post(`/tasks/${b.task.id}/my-day`, { on: false });
+});
+
 test('neither account could write to the other', async () => {
   h.useCookie(bob.cookie);
   await assertFixturesIntact(h, b);

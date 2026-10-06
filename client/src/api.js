@@ -22,7 +22,7 @@ function reportConnection(offline) {
   window.dispatchEvent(new CustomEvent('api-connection', { detail: { offline } }));
 }
 
-async function request(method, path, body) {
+async function request(method, path, body, { workspaceId = null } = {}) {
   let res;
   try {
     res = await fetch(`/api${path}`, {
@@ -30,8 +30,12 @@ async function request(method, path, body) {
       // Always declared, even with no body: the server requires it on every
       // state-changing request as its CSRF defence, because a bodyless
       // cross-origin POST would otherwise be a "simple request" the browser
-      // sends with our cookie attached.
-      headers: { 'Content-Type': 'application/json' },
+      // sends with our cookie attached. X-Workspace-Id acts in another of the
+      // user's workspaces for this one request, without switching to it.
+      headers: {
+        'Content-Type': 'application/json',
+        ...(workspaceId != null ? { 'X-Workspace-Id': String(workspaceId) } : {}),
+      },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -65,6 +69,13 @@ export const api = {
   patch: (path, body) => request('PATCH', path, body),
   put: (path, body) => request('PUT', path, body),
   delete: (path) => request('DELETE', path),
+  // The same calls, made inside workspace `id` rather than the active one —
+  // for writes to a task listed by the combined My Day. Reads keep to the
+  // plain calls: the offline cache keys on the URL alone.
+  in: (id) => ({
+    post: (path, body) => request('POST', path, body, { workspaceId: id }),
+    patch: (path, body) => request('PATCH', path, body, { workspaceId: id }),
+  }),
 };
 
 // Parse a human TTC string like "2h", "90m", "1d 2h", "1:30" into minutes.

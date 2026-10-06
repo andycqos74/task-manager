@@ -196,6 +196,12 @@ export default function App() {
     return () => { cancelled = true; };
   }, [settings.github_available, settings.github_token_last4]);
 
+  // A task in another workspace can only be opened from inside it.
+  const openTaskIn = useCallback(async (taskId, workspaceId) => {
+    if (workspaceId !== activeWorkspaceId) await switchWorkspace(workspaceId);
+    setSelectedTaskId(taskId);
+  }, [activeWorkspaceId, switchWorkspace]);
+
   const viewProps = {
     refreshKey,
     refresh,
@@ -256,11 +262,7 @@ export default function App() {
           <NotificationsMenu
             refreshKey={refreshKey}
             activeWorkspaceId={activeWorkspaceId}
-            onOpenTask={async (item) => {
-              // A task in another workspace can only be opened from inside it.
-              if (item.workspace_id !== activeWorkspaceId) await switchWorkspace(item.workspace_id);
-              setSelectedTaskId(item.task_id);
-            }}
+            onOpenTask={(item) => openTaskIn(item.task_id, item.workspace_id)}
             onSettings={() => goTo({ name: 'settings' })}
             onError={reportError}
           />
@@ -380,7 +382,7 @@ export default function App() {
               {offline && <button className="btn-outline" onClick={refresh}>Retry</button>}
             </div>
           )}
-          {view.name === 'myday' && <MyDay {...viewProps} />}
+          {view.name === 'myday' && <MyDay {...viewProps} onOpenTask={openTaskIn} />}
           {view.name === 'schedule' && <Schedule {...viewProps} />}
           {view.name === 'all' && <AllTasks {...allTasksProps} />}
           {view.name === 'review' && <Review {...viewProps} />}

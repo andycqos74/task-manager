@@ -168,3 +168,28 @@ export function setStoryStage(scope, story, stage, sortOrder) {
     .run(stage, sortOrder, story.id);
   return getStory(scope, story.id);
 }
+
+// ---------- ordering (Development tab drag and drop) ----------
+// Each takes the full, already-validated list of ids for one container and
+// writes their positions in one transaction, so a half-applied drop can never
+// leave two rows claiming the same place.
+
+export function setEpicOrder(scope, project, ids) {
+  const stmt = db.prepare(`UPDATE epics SET sort_order = ?, updated_at = datetime('now') WHERE id = ? AND project_id = ?`);
+  db.transaction(() => ids.forEach((id, i) => stmt.run(i, id, project.id)))();
+  return listProjectEpics(scope, project.id);
+}
+
+// Stories named here that live under another epic of the same project are
+// moved into this one.
+export function setStoryOrder(scope, epic, ids) {
+  const stmt = db.prepare(`UPDATE user_stories SET epic_id = ?, sort_order = ?, updated_at = datetime('now') WHERE id = ?`);
+  db.transaction(() => ids.forEach((id, i) => stmt.run(epic.id, i, id)))();
+  return listStories(scope, { epicId: epic.id });
+}
+
+// Stories of one project, by id — what the order endpoints check a submitted
+// list against.
+export function projectStoryIds(scope, projectId) {
+  return new Set(listProjectStories(scope, projectId).map((s) => s.id));
+}

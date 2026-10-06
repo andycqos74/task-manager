@@ -46,8 +46,23 @@ export function setActiveWorkspaceId(userId, workspaceId) {
     .run(userId, String(workspaceId));
 }
 
+// The header a request may send to act in one of the caller's other
+// workspaces without switching to it — how the combined My Day completes or
+// unflags a task that lives elsewhere. It goes through the same ownership
+// check as the stored workspace, so it can only ever name the caller's own.
+export const WORKSPACE_HEADER = 'x-workspace-id';
+
 // Express middleware. Runs after attachUser, so req.user is already resolved.
 export function attachScope(req, res, next) {
   req.scope = scopeForUser(req.user.id);
+  const override = req.get(WORKSPACE_HEADER);
+  if (override != null && override !== '') {
+    const id = Number(override);
+    if (!Number.isInteger(id) || !db.prepare('SELECT 1 FROM workspaces WHERE id = ? AND user_id = ?').get(id, req.user.id)) {
+      // "Not there", as for any other row out of reach.
+      return res.status(404).json({ error: 'workspace not found' });
+    }
+    req.scope = { ...req.scope, workspaceId: id };
+  }
   next();
 }

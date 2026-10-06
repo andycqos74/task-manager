@@ -125,7 +125,10 @@ created through Google have no password until their owner sets one.
   - **Estimated TTC** — estimated time to complete, entered as `2h`, `90m`, `1d 4h`, etc.
 - **My Day** — like Microsoft To Do's My Day. Shows tasks flagged for today (one click on
   the ☀ icon, flag expires at midnight) plus tasks whose Do date has arrived. Includes
-  overdue and workload warnings (planned estimates vs. workday length).
+  overdue and workload warnings (planned estimates vs. workday length). With more than one
+  workspace, **All workspaces** combines them into a single day, with each task labelled with
+  its workspace. Tasks from other workspaces can be completed or unflagged right there;
+  opening one switches to its workspace. The choice is remembered per device.
 - **Upcoming** — rolling view bucketed by Do date: Overdue, Do today, Do tomorrow, This
   week, Next week, Later, No date.
 - **Timeline** — minimal SVG Gantt. Bars run from Do date to Due date, grouped by project,
@@ -141,6 +144,9 @@ created through Google have no password until their owner sets one.
   any **line or selection can be turned into a task** with one click (first line → title,
   the rest → task notes). A singleton "Scratch" note is always present; use "＋ New" for
   additional pages.
+- **Development tab** — a project's epics → user stories → tasks. Drag the ⠿ handle to
+  reorder epics, to reorder stories or move one to another epic (drop it on the epic's row or
+  among its stories), and to reorder tasks or move one to another story.
 - **Extras** — subtask checklists, tags with search/filter, recurring tasks
   (daily/weekly/monthly — completing one spawns the next occurrence).
 
@@ -248,7 +254,14 @@ Run server unit tests with `npm test`.
 - `POST /api/tasks/:id/my-day` `{on: true|false}`
 - `POST /api/tasks/:id/subtasks`, `PATCH/DELETE /api/subtasks/:id`
 - `PUT /api/tasks/:id/dependencies` `{depends_on_ids: [...]}`
-- `GET /api/views/my-day`, `GET /api/views/schedule`, `GET /api/gantt`
+- `GET /api/views/my-day` (`?scope=all` for every workspace combined), `GET /api/views/schedule`,
+  `GET /api/gantt`
+- `PUT /api/projects/:id/epics/order`, `PUT /api/epics/:id/stories/order`,
+  `PUT /api/stories/:id/tasks/order` `{ids: [...]}` — the Development tab's drag and drop:
+  the container's complete new order; stories and tasks listed from elsewhere in the same
+  project move in
+- Any request may send `X-Workspace-Id` to act in another of the caller's workspaces
+  without switching to it (an unknown or someone else's workspace is a 404)
 - `GET/POST /api/notes`, `GET /api/notes/scratch`, `GET/PATCH/DELETE /api/notes/:id`
   (attach via `{task_id}` or `{project_id}`; a note has at most one owner)
 - `GET /api/tags`, `GET/PATCH /api/settings`
