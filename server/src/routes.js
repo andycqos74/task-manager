@@ -1298,12 +1298,46 @@ function reloadIssueItem(scope, type, id) {
   return loadIssueItem(scope, type, id).item;
 }
 
+// Nest a task's issue under its story's issue as a GitHub sub-issue. Both have
+// to be linked already. `issueId` is the task issue's REST id when the caller
+// has it to hand; `fresh` skips the parent check for a just-created issue.
+// Failures don't fail the push (the issue itself is filed); they come back as
+// warnings for the person to see.
+async function nestUnderStory(scope, story, task, { issueId = null, fresh = false } = {}, warnings) {
+  if (!story?.github_issue_number || !task.github_issue_number) return;
+  try {
+    if (!fresh) {
+      const parent = await GitHub.getParentIssue(scope, task.github_repo, task.github_issue_number);
+      const parentRepo = parent?.repository_url?.split('/repos/')[1];
+      if (parent?.number === story.github_issue_number
+        && parentRepo?.toLowerCase() === story.github_repo.toLowerCase()) return;
+    }
+    const id = issueId ?? (await GitHub.getIssue(scope, task.github_repo, task.github_issue_number)).id;
+    await GitHub.addSubIssue(scope, story.github_repo, story.github_issue_number, id);
+  } catch (err) {
+    if (!(err instanceof GitHub.GitHubError)) throw err;
+    warnings.push(`Could not make "${task.title}" a sub-issue of "${story.title}": ${GitHub.describeError(err)}`);
+  }
+}
+
+// After a push: a task goes under its story; a story gathers its linked tasks.
+async function nestIssues(scope, type, item, ctx, opts, warnings) {
+  if (type === 'task') {
+    await nestUnderStory(scope, ctx.story, item, opts, warnings);
+  } else if (type === 'story') {
+    for (const task of GitHubLinks.listLinkedStoryTasks(scope, item.id)) {
+      await nestUnderStory(scope, item, task, {}, warnings);
+    }
+  }
+}
+
 const ISSUE_ROUTES = { epic: 'epics', story: 'stories', task: 'tasks', idea: 'ideas' };
 
 for (const [type, path] of Object.entries(ISSUE_ROUTES)) {
   // Push: create the issue in the project's repo, or bring an already-linked
   // issue up to date (title, body, open/closed). Labels are only set on
-  // creation so ones added on GitHub survive later pushes.
+  // creation so ones added on GitHub survive later pushes. Tasks under a
+  // linked story become sub-issues of the story's issue.
   router.post(`/${path}/:id/github`, github(async (req, res) => {
     const loaded = loadIssueItem(req.scope, type, req.params.id);
     if (!loaded) return notFound(res, type);
@@ -1317,7 +1351,9 @@ for (const [type, path] of Object.entries(ISSUE_ROUTES)) {
         ...content, ...GitHub.issueStateFor(type, item),
       });
       GitHubLinks.setIssueLink(req.scope, type, item.id, { repo, number: issue.number, url: issue.html_url, state: issue.state });
-      return res.json({ created: false, item: reloadIssueItem(req.scope, type, item.id) });
+      const warnings = [];
+      await nestIssues(req.scope, type, reloadIssueItem(req.scope, type, item.id), ctx, { issueId: issue.id }, warnings);
+      return res.json({ created: false, item: reloadIssueItem(req.scope, type, item.id), warnings });
     }
 
     const repo = project?.github_repo;
@@ -1335,7 +1371,9 @@ for (const [type, path] of Object.entries(ISSUE_ROUTES)) {
       issue = await GitHub.updateIssue(req.scope, repo, issue.number, wanted);
       GitHubLinks.setIssueState(req.scope, type, item.id, issue.state);
     }
-    res.status(201).json({ created: true, item: reloadIssueItem(req.scope, type, item.id) });
+    const warnings = [];
+    await nestIssues(req.scope, type, reloadIssueItem(req.scope, type, item.id), ctx, { issueId: issue.id, fresh: true }, warnings);
+    res.status(201).json({ created: true, item: reloadIssueItem(req.scope, type, item.id), warnings });
   }));
 
   // Forget the link. The issue itself is left alone on GitHub.

@@ -121,6 +121,24 @@ export async function getIssue(scope, repo, number) {
   return gh(scope, 'GET', `/repos/${repo}/issues/${Number(number)}`);
 }
 
+// The issue's parent in GitHub's sub-issue hierarchy, or null when it has none.
+export async function getParentIssue(scope, repo, number) {
+  try {
+    return await gh(scope, 'GET', `/repos/${repo}/issues/${Number(number)}/parent`);
+  } catch (err) {
+    if (err instanceof GitHubError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+// Make `childId` (the issue's REST id, not its number) a sub-issue of the
+// parent, moving it off any other parent it had.
+export async function addSubIssue(scope, repo, parentNumber, childId) {
+  return gh(scope, 'POST', `/repos/${repo}/issues/${Number(parentNumber)}/sub_issues`, {
+    sub_issue_id: Number(childId), replace_parent: true,
+  });
+}
+
 // ---------- mapping items to issues ----------
 
 const LABELS = { epic: 'epic', story: 'user story', task: 'task', idea: 'enhancement', bug: 'bug' };

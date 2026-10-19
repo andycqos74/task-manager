@@ -62,3 +62,10 @@ export function listLinkedItems(scope, projectId) {
       WHERE i.project_id = @pid AND i.workspace_id = @ws AND i.github_issue_number IS NOT NULL`).all(params));
   return rows;
 }
+
+// A story's tasks that are linked to an issue, to nest under the story's issue.
+export function listLinkedStoryTasks(scope, storyId) {
+  return db.prepare(`SELECT t.* FROM tasks t WHERE t.story_id = @sid AND t.workspace_id = @ws
+      AND t.github_issue_number IS NOT NULL ORDER BY t.sort_order, t.id`)
+    .all({ sid: storyId, ws: scope.workspaceId });
+}

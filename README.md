@@ -197,7 +197,10 @@ Development work can be pushed to GitHub as issues:
    now show **Push to GitHub**. Pushing files an issue labelled `epic`, `user story`,
    `task`, `enhancement` or `bug`, with the description, the parent epic/story (as `#12`
    references once those are pushed), dates, priority and a task's checklist. The item then
-   shows its issue number, linking to it.
+   shows its issue number, linking to it. A task under a story becomes a
+   [sub-issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues)
+   of the story's issue once both are pushed, whichever goes first; pushing again re-nests
+   it if it has been moved to another story.
 4. Push a linked item again (↻ / *update issue*) to bring the issue's title, body and
    open/closed state up to date. Labels are only set on creation, so ones you add on GitHub
    are kept.
