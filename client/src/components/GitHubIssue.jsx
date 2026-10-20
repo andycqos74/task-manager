@@ -16,8 +16,10 @@ export default function GitHubIssue({ type, item, canPush, compact = false, onCh
     e?.stopPropagation();
     setBusy(true);
     try {
-      const { item: updated } = await api.post(path);
+      const { item: updated, warnings } = await api.post(path);
       onChanged?.(updated);
+      // The push went through but nesting a task under its story did not.
+      if (warnings?.length) onError?.(new Error(warnings.join(' ')));
     } catch (err) {
       onError?.(err);
     } finally {

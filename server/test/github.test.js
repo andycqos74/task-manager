@@ -21,12 +21,29 @@ const fake = http.createServer((req, res) => {
     if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(401, { message: 'Bad credentials' });
     if (req.url === '/user') return send(200, { login: 'octocat', name: 'The Octocat' });
     if (req.url.startsWith('/user/repos')) return send(200, [{ full_name: 'octo/app', private: false, has_issues: true }]);
+    const sub = req.url.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/(parent|sub_issues)$/);
+    if (sub) {
+      const issue = issues.get(`${sub[1]}#${sub[2]}`);
+      if (!issue) return send(404, { message: 'Not Found' });
+      if (sub[3] === 'parent') {
+        const parent = issue.parent && issues.get(issue.parent);
+        return parent ? send(200, parent) : send(404, { message: 'Not Found' });
+      }
+      const child = [...issues.values()].find((i) => i.id === body.sub_issue_id);
+      if (!child) return send(422, { message: 'Validation Failed' });
+      if (child.parent && !body.replace_parent) return send(422, { message: 'Validation Failed' });
+      child.parent = `${sub[1]}#${sub[2]}`;
+      return send(201, issue);
+    }
     const m = req.url.match(/^\/repos\/([^/]+\/[^/]+)\/issues(?:\/(\d+))?$/);
     if (!m || m[1] === 'octo/missing') return send(404, { message: 'Not Found' });
     const repo = m[1];
     if (req.method === 'POST' && !m[2]) {
       const n = nextNumber++;
-      const issue = { number: n, html_url: `https://github.com/${repo}/issues/${n}`, state: 'open', state_reason: null, ...body };
+      const issue = {
+        id: 1000 + n, number: n, html_url: `https://github.com/${repo}/issues/${n}`,
+        repository_url: `${process.env.GITHUB_API_URL}/repos/${repo}`, state: 'open', state_reason: null, ...body,
+      };
       issues.set(`${repo}#${n}`, issue);
       return send(201, issue);
     }
@@ -216,4 +233,55 @@ test('another workspace\'s items cannot be pushed, unlinked or synced — and Gi
     assert.equal((await h.raw(method, url, {})).status, 404, `${method} ${url}`);
   }
   assert.equal(requests.length, before);
+});
+
+const issueAt = (item) => issues.get(`${item.github_repo}#${item.github_issue_number}`);
+
+test('tasks under a story become sub-issues of the story, whichever is pushed first', async () => {
+  const project = await h.post('/projects', { name: 'Nesting', github_repo: 'octo/app' });
+  const epic = await h.post('/epics', { project_id: project.id, title: 'E' });
+  const story = await h.post('/stories', { epic_id: epic.id, title: 'S' });
+  const early = await h.post('/tasks', { title: 'pushed before the story', story_id: story.id });
+  const earlyItem = (await h.post(`/tasks/${early.id}/github`, {})).item;
+  assert.equal(issueAt(earlyItem).parent, undefined);
+
+  const pushedStory = await h.post(`/stories/${story.id}/github`, {});
+  assert.deepEqual(pushedStory.warnings, []);
+  const storyKey = `octo/app#${pushedStory.item.github_issue_number}`;
+  assert.equal(issueAt(earlyItem).parent, storyKey);
+
+  const late = await h.post('/tasks', { title: 'pushed after the story', story_id: story.id });
+  const lateItem = (await h.post(`/tasks/${late.id}/github`, {})).item;
+  assert.equal(issueAt(lateItem).parent, storyKey);
+
+  // Re-pushing an already-nested task leaves the hierarchy alone.
+  const before = requests.length;
+  await h.post(`/tasks/${late.id}/github`, {});
+  assert.ok(!requests.slice(before).some((r) => r.url.endsWith('/sub_issues')));
+
+  // Moved to another pushed story, a re-push re-nests it there.
+  const other = await h.post('/stories', { epic_id: epic.id, title: 'S2' });
+  const otherItem = (await h.post(`/stories/${other.id}/github`, {})).item;
+  await h.patch(`/tasks/${late.id}`, { story_id: other.id });
+  await h.post(`/tasks/${late.id}/github`, {});
+  assert.equal(issueAt(lateItem).parent, `octo/app#${otherItem.github_issue_number}`);
+
+  // A task outside any story is never nested.
+  const loose = await h.post('/tasks', { title: 'loose', project_id: project.id });
+  const looseItem = (await h.post(`/tasks/${loose.id}/github`, {})).item;
+  assert.equal(issueAt(looseItem).parent, undefined);
+});
+
+test('a failed nesting does not fail the push and comes back as a warning', async () => {
+  const project = await h.post('/projects', { name: 'Nest fail', github_repo: 'octo/app' });
+  const epic = await h.post('/epics', { project_id: project.id, title: 'E' });
+  const story = await h.post('/stories', { epic_id: epic.id, title: 'S' });
+  const storyItem = (await h.post(`/stories/${story.id}/github`, {})).item;
+  issues.delete(`octo/app#${storyItem.github_issue_number}`); // deleted on GitHub
+  const task = await h.post('/tasks', { title: 'orphaned', story_id: story.id });
+  const res = await h.raw('POST', `/tasks/${task.id}/github`, {});
+  assert.equal(res.status, 201);
+  assert.ok(res.body.item.github_issue_number);
+  assert.equal(res.body.warnings.length, 1);
+  assert.match(res.body.warnings[0], /sub-issue of "S"/);
 });
