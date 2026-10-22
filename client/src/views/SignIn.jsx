@@ -130,6 +130,13 @@ export default function SignIn({ onSignedIn }) {
           </button>
         )}
       </form>
+
+      {/* Public on purpose: Google's OAuth consent screen requires both to be
+          reachable without signing in. */}
+      <nav className="signin-legal">
+        <a href="/privacy-policy.pdf" target="_blank" rel="noopener">Privacy Policy</a>
+        <a href="/terms-of-service.pdf" target="_blank" rel="noopener">Terms of Service</a>
+      </nav>
     </div>
   );
 }
