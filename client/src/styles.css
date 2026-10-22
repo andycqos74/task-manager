@@ -841,9 +841,12 @@ button.danger:hover { background: var(--danger-light); }
 .app-booting { min-height: 100vh; background: var(--bg); }
 
 .signin-shell {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 24px 16px; background: var(--bg);
 }
+.signin-legal { display: flex; gap: 18px; margin-top: 16px; font-size: 12px; }
+.signin-legal a { color: var(--text-muted); text-decoration: none; }
+.signin-legal a:hover { color: var(--text-primary); text-decoration: underline; }
 .signin-card {
   width: 100%; max-width: 380px; background: #fff; border: 1px solid var(--card-border);
   border-radius: 16px; padding: 28px 26px 24px;
