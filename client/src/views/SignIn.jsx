@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { BrandMark, Wordmark } from '../components/Brand.jsx';
 
+// The "What is This-Organiser?" section is written once, in index.html, so it
+// is in the served page for visitors without JavaScript. Grab it here — this
+// module runs before React's first render replaces #root.
+const aboutHtml = document.getElementById('about-app')?.outerHTML ?? '';
+
 // The pre-authentication screen. It is one component covering three states,
 // because they are the same form with different copy:
 //
@@ -133,6 +138,8 @@ export default function SignIn({ onSignedIn }) {
 
       {/* Public on purpose: Google's OAuth consent screen requires both to be
           reachable without signing in. */}
+      <div className="signin-about-wrap" dangerouslySetInnerHTML={{ __html: aboutHtml }} />
+
       <nav className="signin-legal">
         <a href="/privacy-policy.pdf" target="_blank" rel="noopener">Privacy Policy</a>
         <a href="/terms-of-service.pdf" target="_blank" rel="noopener">Terms of Service</a>

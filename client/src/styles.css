@@ -844,6 +844,19 @@ button.danger:hover { background: var(--danger-light); }
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 24px 16px; background: var(--bg);
 }
+.signin-about-wrap { width: 100%; max-width: 380px; }
+.signin-about { margin-top: 16px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.signin-about summary {
+  cursor: pointer; text-align: center; color: var(--accent-dark); font-weight: 600; list-style-position: inside;
+}
+.signin-about summary:hover { text-decoration: underline; }
+.signin-about-body {
+  margin-top: 10px; background: #fff; border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 18px;
+}
+.signin-about-body p { margin: 0 0 10px; }
+.signin-about-body p:last-child { margin-bottom: 0; }
+.signin-about-body ul { margin: 0 0 10px; padding-left: 18px; }
+.signin-about-body a { color: var(--accent-dark); }
 .signin-legal { display: flex; gap: 18px; margin-top: 16px; font-size: 12px; }
 .signin-legal a { color: var(--text-muted); text-decoration: none; }
 .signin-legal a:hover { color: var(--text-primary); text-decoration: underline; }
