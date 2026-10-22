@@ -422,8 +422,8 @@ export default function App() {
 
       <footer className="app-footer">
         <nav className="app-footer-links">
-          <a href="/privacy-policy.pdf" target="_blank" rel="noopener">Privacy Policy</a>
-          <a href="/terms-of-service.pdf" target="_blank" rel="noopener">Terms of Service</a>
+          <a href="/privacy-policy.html" target="_blank" rel="noopener">Privacy Policy</a>
+          <a href="/terms-of-service.html" target="_blank" rel="noopener">Terms of Service</a>
         </nav>
         <span className="app-footer-label">POWERED BY</span>
         <SolwaiMark theme="dark" size={20} />
