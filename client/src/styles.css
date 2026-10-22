@@ -51,7 +51,7 @@
 
 @font-face {
   font-family: 'Quadrillion';
-  src: url('./assets/quadrillion-el.otf') format('opentype');
+  src: url('./assets/quadrillion-light.otf') format('opentype');
   font-weight: 200;
   font-display: block;
 }

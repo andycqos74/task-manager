@@ -34,16 +34,9 @@ export function SolwaiMark({ theme = 'dark', size = 20 }) {
   );
 }
 
-// "THIS-ORGANISER" wordmark, Quadrillion Extra Light 200 — the product
-// weight. The bundled demo font's hyphen glyph is a placeholder, so the
-// hyphen is set in Manrope instead — drop this span once a licensed
-// Quadrillion is available.
+// "THIS-ORGANISER" wordmark, Quadrillion Light — the product weight.
 export function Wordmark({ className }) {
-  return (
-    <span className={className}>
-      THIS<span style={{ fontFamily: 'Manrope', fontWeight: 300 }}>-</span>ORGANISER
-    </span>
-  );
+  return <span className={className}>THIS-ORGANISER</span>;
 }
 
 // "SOLWAI" wordmark, Quadrillion Semibold 700 — the house weight, never the
