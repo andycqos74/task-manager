@@ -1,0 +1,52 @@
+/* Shared styles for the static legal pages (privacy-policy.html,
+   terms-of-service.html). Plain HTML on purpose: they must be readable
+   without signing in or running the app. */
+:root {
+  --bg: oklch(0.97 0.004 240);
+  --card: #ffffff;
+  --border: oklch(0.88 0.008 240);
+  --text: oklch(0.22 0.04 235);
+  --muted: oklch(0.46 0.02 240);
+  --accent: oklch(0.44 0.075 210);
+  --brand: #0F2B3D;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px; line-height: 1.6;
+}
+.legal-top {
+  background: var(--brand); padding: 14px 16px;
+}
+.legal-top a {
+  color: #fff; text-decoration: none; font-weight: 600; font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.legal-top a:hover { text-decoration: underline; }
+main {
+  max-width: 760px; margin: 24px auto 40px; padding: 28px 32px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+}
+h1 { font-size: 26px; line-height: 1.25; margin: 0 0 4px; color: var(--brand); }
+.updated { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+h2 { font-size: 18px; margin: 28px 0 8px; color: var(--brand); }
+p { margin: 0 0 12px; }
+ul { margin: 0 0 12px; padding-left: 22px; }
+li { margin-bottom: 4px; }
+a { color: var(--accent); }
+.table-wrap { overflow-x: auto; margin: 0 0 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: oklch(0.96 0.005 240); font-weight: 600; }
+.legal-foot { text-align: center; color: var(--muted); font-size: 13px; margin: 0 0 32px; padding: 0 16px; }
+.legal-foot a { color: var(--muted); margin: 0 8px; }
+@media (max-width: 600px) {
+  main { margin: 16px; padding: 20px 18px; }
+  h1 { font-size: 22px; }
+}
+@media print {
+  body { background: #fff; }
+  .legal-top, .legal-foot { display: none; }
+  main { border: 0; margin: 0; padding: 0; max-width: none; }
+}

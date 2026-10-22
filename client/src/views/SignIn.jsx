@@ -141,8 +141,8 @@ export default function SignIn({ onSignedIn }) {
       <div className="signin-about-wrap" dangerouslySetInnerHTML={{ __html: aboutHtml }} />
 
       <nav className="signin-legal">
-        <a href="/privacy-policy.pdf" target="_blank" rel="noopener">Privacy Policy</a>
-        <a href="/terms-of-service.pdf" target="_blank" rel="noopener">Terms of Service</a>
+        <a href="/privacy-policy.html" target="_blank" rel="noopener">Privacy Policy</a>
+        <a href="/terms-of-service.html" target="_blank" rel="noopener">Terms of Service</a>
       </nav>
     </div>
   );
