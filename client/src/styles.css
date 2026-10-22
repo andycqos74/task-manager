@@ -92,6 +92,11 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: p
   border-top: 1px solid var(--sidebar-border); padding: 0 20px;
   display: flex; align-items: center; justify-content: flex-end; gap: 9px;
 }
+.app-footer-links { margin-right: auto; display: flex; gap: 16px; }
+.app-footer-links a {
+  font-size: 11px; color: oklch(0.82 0.03 225); text-decoration: none;
+}
+.app-footer-links a:hover { color: #fff; text-decoration: underline; }
 .app-footer-label {
   font-family: var(--font-brand); font-weight: 200; font-size: 11px;
   letter-spacing: 0.14em; color: oklch(0.82 0.03 225);
