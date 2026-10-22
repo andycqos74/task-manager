@@ -18,7 +18,39 @@
     />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Static on purpose: it is in the served HTML so anyone (including
+         Google's OAuth verification) can read what the app is without
+         signing in or running JavaScript. React replaces #root on boot and
+         the sign-in page re-renders this same element from here. -->
+    <div id="root">
+      <details id="about-app" class="signin-about">
+        <summary>What is This-Organiser?</summary>
+        <div class="signin-about-body">
+          <p>
+            This-Organiser is a web-based task and project manager. It helps you capture
+            tasks quickly, organise them into projects and goals, and plan your day and
+            week.
+          </p>
+          <ul>
+            <li>Quick capture of tasks and notes</li>
+            <li>Projects and goals with deadlines, priorities and dependencies</li>
+            <li>A &ldquo;My Day&rdquo; list and rolling day and week planning</li>
+            <li>A Gantt timeline of your projects</li>
+            <li>Optional AI-assisted planning and prioritisation</li>
+          </ul>
+          <p>
+            You can create an account with an email address and password, or sign in with
+            Google. Google sign-in is used only to confirm who you are: the app receives your
+            name and email address to create and sign in to your account, and does not access
+            any other data in your Google account.
+          </p>
+          <p>
+            See our <a href="/privacy-policy.pdf" target="_blank" rel="noopener">Privacy Policy</a>
+            and <a href="/terms-of-service.pdf" target="_blank" rel="noopener">Terms of Service</a>.
+          </p>
+        </div>
+      </details>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
